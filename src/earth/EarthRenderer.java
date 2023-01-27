@@ -26,6 +26,8 @@ public class EarthRenderer implements CanvasRenderer, MouseMotionListener {
     private long lastFpsTime = System.currentTimeMillis();
     private int mouseX;
     private int mouseY;
+
+    private Vector3D lightDirection = new Vector3D(0, 0, 1);
     private Cube cube;
 
     private long lastFrameTime;
@@ -39,7 +41,7 @@ public class EarthRenderer implements CanvasRenderer, MouseMotionListener {
 
         distance = Math.sqrt(Math.pow(513256.302301, 2) + Math.pow(-1132637.821089, 2) + Math.pow(-676524.885803, 2));
         scaleFactor = 1.05;
-        cube = new Cube(new Vector3D(0, 0, 5), 0.0005, 0.001);
+        cube = new Cube(new Vector3D(0, 0, 6), 0.0006, 0.002, 0.001);
     }
 
     @Override
@@ -53,13 +55,16 @@ public class EarthRenderer implements CanvasRenderer, MouseMotionListener {
     @Override
     public void render(Graphics g, double dt, boolean recordMode) {
 
+        dt = 0.2;
+
         g.setColor(new Color(123, 234, 12));
         g.drawImage(img, 0, 0, WIDTH, HEIGHT, null);
 
-        var mousePixel = new Color(img.getRGB(mouseX * 2, mouseY * 2));
-
         g.drawString("Mouse: x: " + mouseX + ", y: " + mouseY, 800, 50);
-        g.drawString("Pixel: (" + mousePixel.getRed() + ", " + mousePixel.getGreen() + ", " + mousePixel.getBlue() + ")", 800, 70);
+        if (mouseX * 2 < img.getWidth() && mouseY * 2 < img.getHeight()) {
+            var mousePixel = new Color(img.getRGB(mouseX * 2, mouseY * 2));
+            g.drawString("Pixel: (" + mousePixel.getRed() + ", " + mousePixel.getGreen() + ", " + mousePixel.getBlue() + ")", 800, 70);
+        }
 
         Vector2D northPos = getNorthPole();
         Vector2D southPos = getSouthPole();
@@ -70,31 +75,41 @@ public class EarthRenderer implements CanvasRenderer, MouseMotionListener {
 
         cube.update(dt);
 
+        Matrix4 transform = cube.getTransform();
         for (Triangle tri : cube.getTriangles()) {
-            drawTriangle(g, tri);
+            drawTriangle(g, tri, transform);
         }
 
         frameCount++;
         long time = System.currentTimeMillis();
         if (time - lastFpsTime > 1000) {
-            System.out.println("FPS: " + frameCount);
+            System.out.println("FPS: " + frameCount + ", dt: " + dt);
             frameCount = 0;
             lastFpsTime = time;
         }
     }
 
-    private void drawTriangle(Graphics g, Triangle tri) {
+    private void drawTriangle(Graphics g, Triangle tri, Matrix4 transform) {
+
+        Triangle transformed = tri.transform(transform);
+
         // Check if triangle is facing towards or away from the camera
-        Vector3D normal = tri.normal();
-        double normalDotOrigin = normal.dot(tri.a());
+        Vector3D normal = transformed.normal();
+
+        double normalDotOrigin = normal.dot(transformed.a());
         if (normalDotOrigin > 0) return;
 
-        Vector2D projectedA = projector.project(tri.a());
-        Vector2D projectedB = projector.project(tri.b());
-        Vector2D projectedC = projector.project(tri.c());
+        double normalDotLight = normal.dot(lightDirection);
+        g.setColor(new Color(0, (int)(-normalDotLight * 255), 0));
+
+        Vector2D projectedA = projector.project(transformed.a());
+        Vector2D projectedB = projector.project(transformed.b());
+        Vector2D projectedC = projector.project(transformed.c());
         g.drawLine((int) projectedA.x(), (int) projectedA.y(), (int) projectedB.x(), (int) projectedB.y());
         g.drawLine((int) projectedB.x(), (int) projectedB.y(), (int) projectedC.x(), (int) projectedC.y());
         g.drawLine((int) projectedC.x(), (int) projectedC.y(), (int) projectedA.x(), (int) projectedA.y());
+        g.fillPolygon(new Polygon(new int[] {(int) projectedA.x(), (int) projectedB.x(), (int) projectedC.x()},
+                new int[] {(int) projectedA.y(), (int) projectedB.y(), (int) projectedC.y()}, 3));
     }
 
     // TODO also add in earth's rotation around the sun which affects the apparent tilt

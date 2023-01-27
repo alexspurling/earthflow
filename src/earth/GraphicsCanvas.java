@@ -26,19 +26,18 @@ public class GraphicsCanvas extends Canvas implements Runnable {
         frame.setVisible(true);
     }
 
+
     @Override
     public void run() {
+        createBufferStrategy(2);
+        BufferStrategy bs = this.getBufferStrategy();
+
         while (isRunning) {
-            BufferStrategy bs = this.getBufferStrategy();
-            if (bs == null) {
-                createBufferStrategy(2);
-                continue;
-            }
             Graphics g = bs.getDrawGraphics();
-            if (g != null) {
-                renderer.render(g);
-                bs.show();
-            }
+            renderer.render(g);
+            g.dispose();
+            bs.show();
+//            Toolkit.getDefaultToolkit().sync();
         }
     }
 

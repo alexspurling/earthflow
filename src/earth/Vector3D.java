@@ -52,36 +52,4 @@ public record Vector3D(double x, double y, double z) {
         return new Vector3D(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
     }
 
-    /* Rotate about the Y axis */
-    public Vector3D rotateY(double angle) {
-        double c = cos(angle);
-        double s = sin(angle);
-
-        double x2 = c * x + -s * z;
-        double y2 = y;
-        double z2 = s * x + c * z;
-        return new Vector3D(x2, y2, z2);
-    }
-
-    public Vector3D rotateZ(double angle) {
-        Matrix4 rotateZ = new Matrix4(new double[][] {
-                {Math.cos(angle), Math.sin(angle), 0, 0},
-                {-Math.sin(angle), Math.cos(angle), 0, 0},
-                {0, 0, 1, 0},
-                {0, 0, 0, 1}
-        });
-
-        return rotateZ.multiply(this);
-    }
-
-    public Vector3D rotateX(double angle) {
-        Matrix4 rotateX = new Matrix4(new double[][] {
-                {1, 0, 0, 0},
-                {0, Math.cos(angle), Math.sin(angle), 0},
-                {0, -Math.sin(angle), Math.cos(angle), 0},
-                {0, 0, 0, 1}
-        });
-
-        return rotateX.multiply(this);
-    }
 }
