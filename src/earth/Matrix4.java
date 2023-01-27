@@ -101,4 +101,18 @@ public record Matrix4(double[][] m) {
                 {pos.x(), pos.y(), pos.z(), 1},
         }));
     }
+
+    // Invert matrix but it only works for rotation / translation matrices (not scaling)
+    Matrix4 invert() {
+        Vector3D a = new Vector3D(m[0][0], m[0][1], m[0][2]);
+        Vector3D b = new Vector3D(m[1][0], m[1][1], m[1][2]);
+        Vector3D c = new Vector3D(m[2][0], m[2][1], m[2][2]);
+        Vector3D t = new Vector3D(m[3][0], m[3][1], m[3][2]);
+        return new Matrix4(new double[][] {
+                {a.x(), b.x(), c.x(), 0},
+                {a.y(), b.y(), c.y(), 0},
+                {a.z(), b.z(), c.z(), 0},
+                {-t.dot(a), -t.dot(b), -t.dot(c), 1}
+        });
+    }
 }

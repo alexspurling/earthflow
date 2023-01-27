@@ -30,6 +30,6 @@ public class Projector {
     public Vector2D project(Vector3D pos) {
         Vector3D projected = projectionMatrix.multiply(pos);
         // Reposition so that 0,0 is in the center of the window
-        return new Vector2D(projected.x(), projected.y()).add(new Vector2D(1, 1)).scale((double) width / 2);
+        return new Vector2D(projected.x(), -projected.y()).add(new Vector2D(1, 1)).scale((double) width / 2);
     }
 }
