@@ -11,7 +11,7 @@ public class Projector {
     private final double aspectRatio;
     private final Matrix4 projectionMatrix;
 
-    public Projector(int width, int height, double zoom) {
+    public Projector(int width, int height) {
         this.width = width;
         this.height = height;
         near = 0.1;

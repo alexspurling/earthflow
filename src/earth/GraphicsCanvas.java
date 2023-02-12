@@ -37,7 +37,7 @@ public class GraphicsCanvas extends Canvas implements Runnable {
             renderer.render(g);
             g.dispose();
             bs.show();
-//            Toolkit.getDefaultToolkit().sync();
+            Toolkit.getDefaultToolkit().sync();
         }
     }
 

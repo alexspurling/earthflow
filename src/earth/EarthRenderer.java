@@ -17,18 +17,20 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 
     private static final double ZOOM_LEVEL = 100000;
 
-    private final Projector projector = new Projector(WIDTH, HEIGHT, ZOOM_LEVEL);
+    private final Projector projector = new Projector(WIDTH, HEIGHT);
 
     private final BufferedImage img;
     private final double distance;
     private final double scaleFactor;
+    private final Sphere sphere;
 
     private int frameCount = 0;
     private long lastFpsTime = System.currentTimeMillis();
     private int mouseX;
     private int mouseY;
 
-    private Vector3D camera = new Vector3D(0, 0.5, -0.5);
+//    private Vector3D camera = new Vector3D(0, 0.5, -0.5);
+    private Vector3D camera = new Vector3D(0, 0, 0);
     private Vector3D lookDir;
     private double yaw = 0;
     private double pitch = 0;
@@ -50,9 +52,13 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
     private int mouseTotalY;
     private Set<Integer> pressedKeys = new HashSet<>();
 
+    private int days = 0;
+
     public EarthRenderer() {
+        BufferedImage texture;
         try {
-            img = ImageIO.read(new File("images/epic_1b_20230119000830.png"));
+            texture = ImageIO.read(new File("images/epic_1b_20230119000830.png"));
+            img = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -60,6 +66,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         distance = Math.sqrt(Math.pow(513256.302301, 2) + Math.pow(-1132637.821089, 2) + Math.pow(-676524.885803, 2));
         scaleFactor = 1.05;
         cube = new Cube(new Vector3D(0, 0, 7), 0.0006, 0.002, 0.001);
+        sphere = new Sphere(new Vector3D(0, 0, 7), 1.5, texture);
         startTime = System.currentTimeMillis();
     }
 
@@ -77,7 +84,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 //        dt = 0.2;
 
         g.setColor(new Color(123, 234, 12));
-        g.drawImage(img, 0, 0, WIDTH, HEIGHT, null);
+        g.drawImage(img, 0, 0, null);
 
         g.drawString("Mouse: x: " + mouseX + ", y: " + mouseY, 800, 50);
         if (mouseX > 0 && mouseX * 2 < img.getWidth() && mouseY > 0 && mouseY * 2 < img.getHeight()) {
@@ -85,6 +92,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
             g.drawString("Pixel: (" + mousePixel.getRed() + ", " + mousePixel.getGreen() + ", " + mousePixel.getBlue() + ")", 800, 70);
         }
         g.drawString(String.format("Camera: x: %.2f, y: %.2f, z: %.2f", camera.x(), camera.y(), camera.z()), 800, 90);
+        g.drawString(String.format("Days: " + days), 800, 110);
 
         Vector2D northPos = getNorthPole();
         Vector2D southPos = getSouthPole();
@@ -94,8 +102,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 //        g.drawOval((int) southPos.x(), (int) southPos.y(), radius, radius);
 
         cube.update(dt);
-
-        Matrix4 worldMatrix = cube.getTransform();
+        sphere.update(days++);
 
         Vector3D up = new Vector3D(0,1,0);
         Vector3D target = new Vector3D(0,0,1);
@@ -130,10 +137,38 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         // Make view matrix from camera
         Matrix4 viewMatrix = cameraMatrix.invert();
 
-        for (Triangle tri : cube.getTriangles()) {
-            drawTriangle(g, tri, worldMatrix, viewMatrix);
+        // Ray trace a sphere
+        for (int x = 0; x < WIDTH; x++) {
+            for (int y = 0; y < HEIGHT; y++) {
+                // Reset the colour of each pixel
+                img.setRGB(x, y, 0);
+
+                double x3d = (double) x / (WIDTH / 2.0) - 1;
+                double y3d = (double) (HEIGHT - y) / (HEIGHT / 2.0) - 1;
+                Vector3D ray = new Vector3D(x3d, y3d, 1);
+
+                Intersection intersection = sphere.getIntersection(ray, camera, viewMatrix);
+
+                if (intersection == null) continue;
+
+                double normalDotCamera = intersection.normal().dot(intersection.point().subtract(camera));
+                if (normalDotCamera > 0) continue;
+
+                double normalDotLight = intersection.normal().dot(lightDirection);
+                if (normalDotLight >= -1 && normalDotLight <= 0) {
+                    Color texColour = sphere.getTextureColour(intersection.point());
+                    Color litColour = multiplyColour(texColour, -normalDotLight);
+                    img.setRGB(x, y, litColour.getRGB());
+//                    img.setRGB(x, y, new Color((int) (-normalDotLight * 255), 0, 0).getRGB());
+                }
+            }
         }
-        drawAxes(g, worldMatrix, viewMatrix);
+
+//        Matrix4 cubeWorldMatrix = cube.getTransform();
+//        for (Triangle tri : cube.getTriangles()) {
+//            drawTriangle(g, tri, cubeWorldMatrix, viewMatrix);
+//        }
+        drawAxes(g, viewMatrix);
 
         frameCount++;
         long time = System.currentTimeMillis();
@@ -142,6 +177,14 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
             frameCount = 0;
             lastFpsTime = time;
         }
+    }
+
+    private Color multiplyColour(Color texColour, double multiplier) {
+        multiplier = Math.min(1, Math.max(0, multiplier));
+        return new Color(
+                (int)(texColour.getRed() * multiplier),
+                (int)(texColour.getGreen() * multiplier),
+                (int)(texColour.getBlue() * multiplier));
     }
 
     Matrix4 pointAt(Vector3D pos, Vector3D target, Vector3D up) {
@@ -166,8 +209,8 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         // Check if triangle is facing towards or away from the camera
         Vector3D normal = transformed.normal();
 
-        double normalDotOrigin = normal.dot(transformed.a().subtract(camera));
-        if (normalDotOrigin > 0) return;
+        double normalDotCamera = normal.dot(transformed.a().subtract(camera));
+        if (normalDotCamera > 0) return;
 
         double normalDotLight = normal.dot(lightDirection);
         if (normalDotLight >= -1 && normalDotLight <= 0) {
@@ -188,22 +231,41 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
                 new int[] {(int) projectedA.y(), (int) projectedB.y(), (int) projectedC.y()}, 3));
     }
 
-    private void drawAxes(Graphics g, Matrix4 worldMatrix, Matrix4 viewMatrix) {
+    private void drawAxes(Graphics g, Matrix4 viewMatrix) {
 
         g.setColor(new Color(200, 200, 0));
 
-        Vector3D originViewed = viewMatrix.multiply(new Vector3D(0, 0, 0));
-        Vector3D axisXViewed = viewMatrix.multiply(new Vector3D(1, 0, 0));
-        Vector3D axisYViewed = viewMatrix.multiply(new Vector3D(0, 1, 0));
-        Vector3D axisZViewed = viewMatrix.multiply(new Vector3D(0, 0, 1));
+        Vector3D origin = new Vector3D(0, 0, 0);
+        Vector3D axisX = new Vector3D(1, 0, 0);
+        Vector3D axisY = new Vector3D(0, 1, 0);
+        Vector3D axisZ = new Vector3D(0, 0, 1);
 
-        Vector2D projectedO = projector.project(originViewed);
-        Vector2D projectedX = projector.project(axisXViewed);
-        Vector2D projectedY = projector.project(axisYViewed);
-        Vector2D projectedZ = projector.project(axisZViewed);
-        g.drawLine((int) projectedO.x(), (int) projectedO.y(), (int) projectedX.x(), (int) projectedX.y());
-        g.drawLine((int) projectedO.x(), (int) projectedO.y(), (int) projectedY.x(), (int) projectedY.y());
-        g.drawLine((int) projectedO.x(), (int) projectedO.y(), (int) projectedZ.x(), (int) projectedZ.y());
+        drawVector(g, viewMatrix, origin, axisX);
+        drawVector(g, viewMatrix, origin, axisY);
+        drawVector(g, viewMatrix, origin, axisZ);
+
+        // X axis arrow
+        drawVector(g, viewMatrix, axisX, new Vector3D(0.9, 0, -0.05));
+        drawVector(g, viewMatrix, axisX, new Vector3D(0.9, 0, 0.05));
+
+        // Y axis arrow
+        drawVector(g, viewMatrix, axisY, new Vector3D(-0.05, 0.9, 0));
+        drawVector(g, viewMatrix, axisY, new Vector3D(0.05, 0.9, 0));
+
+        // Z axis arrow
+        drawVector(g, viewMatrix, axisZ, new Vector3D(-0.05, 0, 0.9));
+        drawVector(g, viewMatrix, axisZ, new Vector3D(0.05, 0, 0.9));
+    }
+
+    private void drawVector(Graphics g, Matrix4 viewMatrix, Vector3D from, Vector3D to) {
+
+        Vector3D fromViewed = viewMatrix.multiply(from);
+        Vector3D toViewed = viewMatrix.multiply(to);
+
+        Vector2D fromProjected = projector.project(fromViewed);
+        Vector2D toProjected = projector.project(toViewed);
+
+        g.drawLine((int) fromProjected.x(), (int) fromProjected.y(), (int) toProjected.x(), (int) toProjected.y());
     }
 
     // TODO also add in earth's rotation around the sun which affects the apparent tilt
