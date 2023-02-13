@@ -6,6 +6,10 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAmount;
+import java.time.temporal.TemporalUnit;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -54,7 +58,9 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
     private int mouseTotalY;
     private Set<Integer> pressedKeys = new HashSet<>();
 
-    private int days = 0;
+    private OffsetDateTime dateTime = OffsetDateTime.now();
+
+    private int timeSpeed = 1;
 
     private int sphereXMin = Integer.MAX_VALUE;
     private int sphereXMax = 0;
@@ -73,8 +79,6 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         scaleFactor = 1.05;
         cube = new Cube(new Vector3D(0, 0, 7), 0.0006, 0.002, 0.001);
         sphere = new Sphere(new Vector3D(0, 0, 7), 4.480, texture);
-
-        sphere.update(29);
 
         // Trace rays to generate earth texture
 //        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
@@ -125,7 +129,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
             g.drawString("Pixel: (" + mousePixel.getRed() + ", " + mousePixel.getGreen() + ", " + mousePixel.getBlue() + ")", 800, 70);
         }
         g.drawString(String.format("Camera: x: %.2f, y: %.2f, z: %.2f", camera.x(), camera.y(), camera.z()), 800, 90);
-        g.drawString(String.format("Days: " + days), 800, 110);
+        g.drawString(String.format("Date: " + dateTime), 800, 110);
         g.drawString(String.format("Min X: " + sphereXMin + ", max x: " + sphereXMax + ", width: " + (sphereXMax - sphereXMin)), 800, 130);
 
         Vector2D northPos = getNorthPole();
@@ -136,7 +140,9 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 //        g.drawOval((int) southPos.x(), (int) southPos.y(), radius, radius);
 
         cube.update(dt);
-        days += 1;
+
+        this.dateTime.plus((int) dtx, ChronoUnit.MILLIS);
+        sphere.update(dateTime);
 
         Vector3D up = new Vector3D(0,1,0);
         Vector3D target = new Vector3D(0,0,1);
@@ -171,7 +177,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         // Make view matrix from camera
         Matrix4 viewMatrix = cameraMatrix.invert();
 
-        sphere.update(days);
+//        sphere.update(days);
 
         // Render sphere using generated earth texture
         IntStream.range(0, WIDTH).parallel().forEach((x) -> {

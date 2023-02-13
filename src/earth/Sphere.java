@@ -2,6 +2,8 @@ package earth;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 public class Sphere {
 
@@ -11,12 +13,15 @@ public class Sphere {
     private BufferedImage earthImage;
 
     private Quaternion rotation;
+    private OffsetDateTime dateTime;
 
     public Sphere(Vector3D position, double radius, BufferedImage earthImage) {
         this.position = position;
         this.radius = radius;
         this.earthImage = earthImage;
         this.rotation = getRotation(0);
+        //noinspection DataFlowIssue
+        this.dateTime = OffsetDateTime.of(2023, 1, 19, 0, 3, 42, 0, ZoneOffset.UTC);
     }
 
     private Quaternion getRotation(double daysSinceWinterSolstice) {
@@ -27,8 +32,9 @@ public class Sphere {
                 .multiply(new Quaternion(zAxisTilt, new Vector3D(0, 0, 1)));
     }
 
-    public void update(double days) {
+    public void update(OffsetDateTime dateTime) {
 //        rotation = getRotation(days);
+        this.dateTime = dateTime;
         rotation = getRotation(29).multiply(new Quaternion(0.1 * days / 365.25 * (Math.PI * 2), new Vector3D(0, 1, 0)));
     }
 
@@ -77,6 +83,9 @@ public class Sphere {
             }
         }
 
+        // Based on the current date / time, find the nearest two earth textures and the distance between them
+        // Load all the earth images and create a map by date.
+        // Load the required pixel as a combination of two earth textures.
         int uint = (int) (u * earthTexture.getWidth());
         int vint = (int) (v * earthTexture.getHeight());
         Color earthTextureColour = new Color(earthTexture.getRGB(uint, vint));
