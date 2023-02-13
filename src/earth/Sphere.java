@@ -8,14 +8,14 @@ public class Sphere {
     private static final double MAX_TILT = Math.toRadians(23.4);
     private Vector3D position;
     private double radius;
-    private BufferedImage texture;
+    private BufferedImage earthImage;
 
     private Quaternion rotation;
 
-    public Sphere(Vector3D position, double radius, BufferedImage texture) {
+    public Sphere(Vector3D position, double radius, BufferedImage earthImage) {
         this.position = position;
         this.radius = radius;
-        this.texture = texture;
+        this.earthImage = earthImage;
         this.rotation = getRotation(0);
     }
 
@@ -28,10 +28,11 @@ public class Sphere {
     }
 
     public void update(double days) {
-        rotation = getRotation(days);
+//        rotation = getRotation(days);
+        rotation = getRotation(29).multiply(new Quaternion(0.1 * days / 365.25 * (Math.PI * 2), new Vector3D(0, 1, 0)));
     }
 
-    public Intersection getIntersection(Vector3D ray, Vector3D rayOrigin, Matrix4 viewMatrix) {
+    public Intersection getIntersection(Vector3D ray, Vector3D rayOrigin) {
 
 //        Vector3D transformedPosition = viewMatrix.multiply(position);
         Vector3D transformedPosition = position;
@@ -54,23 +55,90 @@ public class Sphere {
         return new Intersection(intersectionPoint, normal);
     }
 
-    public Color getTextureColour(Vector3D point) {
+    public Color getTextureColour(Vector3D point, BufferedImage earthTexture) {
         Vector3D d = point.subtract(position).unit();
         d = rotation.rotatePoint(d);
         double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
         double v = 0.5 + Math.asin(d.y()) / Math.PI;
+
+        Color chequeredColour;
+
         if ((int)(u * 10) % 2 == 0) {
             if ((int)(v * 10) % 2 == 0) {
-                return new Color(0, 0, 0);
+                chequeredColour = new Color(0, 0, 0);
+            } else {
+                chequeredColour = new Color(255, 255, 255);
             }
-            return new Color(255, 255, 255);
         } else {
             if ((int) (v * 10) % 2 == 0) {
-                return new Color(255, 255, 255);
+                chequeredColour = new Color(255, 255, 255);
+            } else {
+                chequeredColour = new Color(0, 0, 0);
             }
-            return new Color(0, 0, 0);
         }
+
+        int uint = (int) (u * earthTexture.getWidth());
+        int vint = (int) (v * earthTexture.getHeight());
+        Color earthTextureColour = new Color(earthTexture.getRGB(uint, vint));
+        int k = 3;
+        while (earthTextureColour.equals(Color.BLACK) && k <= 9) {
+            // try to find a nearby pixel to interpolate with
+            earthTextureColour = averagePixels(earthTexture, uint, vint, k);
+            k += 2;
+        }
+        return lerpColor(chequeredColour, earthTextureColour, 0.9f);
     }
 
+    private Color averagePixels(BufferedImage earthTexture, int x, int y, int kernelSize) {
+        int kernelRadius = kernelSize / 2;
+        int sumRed = 0;
+        int sumGreen = 0;
+        int sumBlue = 0;
+        int count = 0;
+        for (int i = -kernelRadius; i <= kernelRadius; i++) {
+            for (int j = -kernelRadius; j <= kernelRadius; j++) {
+                int xIndex = x + i;
+                int yIndex = y + j;
+                if (xIndex >= 0 && xIndex < earthTexture.getWidth() && yIndex >= 0 && yIndex < earthTexture.getHeight()) {
+                    Color pixelColor = new Color(earthTexture.getRGB(xIndex, yIndex));
+                    if (!pixelColor.equals(Color.BLACK)) {
+                        sumRed += pixelColor.getRed();
+                        sumGreen += pixelColor.getGreen();
+                        sumBlue += pixelColor.getBlue();
+                        count++;
+                    }
+                }
+            }
+        }
+        if (count == 0) {
+            return Color.BLACK;
+        }
+        int averageRed = sumRed / count;
+        int averageGreen = sumGreen / count;
+        int averageBlue = sumBlue / count;
+        return new Color(averageRed, averageGreen, averageBlue);
+    }
+
+    private static Color lerpColor(Color colorA, Color colorB, float blend) {
+        int red = (int) (colorA.getRed() * (1 - blend) + colorB.getRed() * blend);
+        int green = (int) (colorA.getGreen() * (1 - blend) + colorB.getGreen() * blend);
+        int blue = (int) (colorA.getBlue() * (1 - blend) + colorB.getBlue() * blend);
+        return new Color(red, green, blue);
+    }
+
+    public void setMappedTextureColour(int x, int y, Vector3D point, BufferedImage earthTexture) {
+        Vector3D d = point.subtract(position).unit();
+        d = rotation.rotatePoint(d);
+        double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
+        double v = 0.5 + Math.asin(d.y()) / Math.PI;
+
+        int worldColour = earthImage.getRGB(x * 2, y * 2);
+        Color worldColourColor = new Color(worldColour);
+        if (worldColour == -16777216) {
+            // earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), new Color(0, 200, 0).getRGB());
+        } else {
+            earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), worldColour);
+        }
+    }
 
 }

@@ -17,7 +17,7 @@ public class GraphicsCanvas extends Canvas implements Runnable {
         this.renderer = renderer;
 
         JFrame frame = new JFrame();
-        this.setSize(width, height);
+        this.setSize(width * 2, height);
         frame.add(this);
         frame.pack();
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

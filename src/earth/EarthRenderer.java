@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotionListener, KeyListener {
 
@@ -23,6 +24,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
     private final double distance;
     private final double scaleFactor;
     private final Sphere sphere;
+    private final BufferedImage earthTexture;
 
     private int frameCount = 0;
     private long lastFpsTime = System.currentTimeMillis();
@@ -54,11 +56,15 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 
     private int days = 0;
 
+    private int sphereXMin = Integer.MAX_VALUE;
+    private int sphereXMax = 0;
+
     public EarthRenderer() {
         BufferedImage texture;
         try {
             texture = ImageIO.read(new File("images/epic_1b_20230119000830.png"));
             img = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+            earthTexture = new BufferedImage(WIDTH * 4, HEIGHT * 2, BufferedImage.TYPE_INT_RGB);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -66,7 +72,33 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         distance = Math.sqrt(Math.pow(513256.302301, 2) + Math.pow(-1132637.821089, 2) + Math.pow(-676524.885803, 2));
         scaleFactor = 1.05;
         cube = new Cube(new Vector3D(0, 0, 7), 0.0006, 0.002, 0.001);
-        sphere = new Sphere(new Vector3D(0, 0, 7), 1.5, texture);
+        sphere = new Sphere(new Vector3D(0, 0, 7), 4.480, texture);
+
+        sphere.update(29);
+
+        // Trace rays to generate earth texture
+//        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
+        for (int x = 0; x < WIDTH; x++) {
+            for (int y = 0; y < HEIGHT; y++) {
+
+                double x3d = (double) x / (WIDTH / 2.0) - 1;
+                double y3d = (double) (HEIGHT - y) / (HEIGHT / 2.0) - 1;
+                Vector3D ray = new Vector3D(x3d, y3d, 1);
+
+                Intersection intersection = sphere.getIntersection(ray, camera);
+
+                if (intersection == null) continue;
+
+                double normalDotCamera = intersection.normal().dot(intersection.point().subtract(camera));
+                if (normalDotCamera > 0) continue;
+
+                double normalDotLight = intersection.normal().dot(lightDirection);
+                if (normalDotLight >= -1 && normalDotLight <= 0) {
+                    sphere.setMappedTextureColour(x, y, intersection.point(), earthTexture);
+                }
+            }
+        }
+
         startTime = System.currentTimeMillis();
     }
 
@@ -85,6 +117,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 
         g.setColor(new Color(123, 234, 12));
         g.drawImage(img, 0, 0, null);
+        g.drawImage(earthTexture, WIDTH, 0, null);
 
         g.drawString("Mouse: x: " + mouseX + ", y: " + mouseY, 800, 50);
         if (mouseX > 0 && mouseX * 2 < img.getWidth() && mouseY > 0 && mouseY * 2 < img.getHeight()) {
@@ -93,6 +126,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         }
         g.drawString(String.format("Camera: x: %.2f, y: %.2f, z: %.2f", camera.x(), camera.y(), camera.z()), 800, 90);
         g.drawString(String.format("Days: " + days), 800, 110);
+        g.drawString(String.format("Min X: " + sphereXMin + ", max x: " + sphereXMax + ", width: " + (sphereXMax - sphereXMin)), 800, 130);
 
         Vector2D northPos = getNorthPole();
         Vector2D southPos = getSouthPole();
@@ -102,7 +136,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 //        g.drawOval((int) southPos.x(), (int) southPos.y(), radius, radius);
 
         cube.update(dt);
-        sphere.update(days++);
+        days += 1;
 
         Vector3D up = new Vector3D(0,1,0);
         Vector3D target = new Vector3D(0,0,1);
@@ -137,8 +171,11 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         // Make view matrix from camera
         Matrix4 viewMatrix = cameraMatrix.invert();
 
-        // Ray trace a sphere
-        for (int x = 0; x < WIDTH; x++) {
+        sphere.update(days);
+
+        // Render sphere using generated earth texture
+        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
+//        for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
                 // Reset the colour of each pixel
                 img.setRGB(x, y, 0);
@@ -147,7 +184,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
                 double y3d = (double) (HEIGHT - y) / (HEIGHT / 2.0) - 1;
                 Vector3D ray = new Vector3D(x3d, y3d, 1);
 
-                Intersection intersection = sphere.getIntersection(ray, camera, viewMatrix);
+                Intersection intersection = sphere.getIntersection(ray, camera);
 
                 if (intersection == null) continue;
 
@@ -156,13 +193,12 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 
                 double normalDotLight = intersection.normal().dot(lightDirection);
                 if (normalDotLight >= -1 && normalDotLight <= 0) {
-                    Color texColour = sphere.getTextureColour(intersection.point());
+                    Color texColour = sphere.getTextureColour(intersection.point(), earthTexture);
                     Color litColour = multiplyColour(texColour, -normalDotLight);
                     img.setRGB(x, y, litColour.getRGB());
-//                    img.setRGB(x, y, new Color((int) (-normalDotLight * 255), 0, 0).getRGB());
                 }
             }
-        }
+        });
 
 //        Matrix4 cubeWorldMatrix = cube.getTransform();
 //        for (Triangle tri : cube.getTriangles()) {
