@@ -7,10 +7,10 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAmount;
-import java.time.temporal.TemporalUnit;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -21,6 +21,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
     public static final int HEIGHT = 1024;
 
     private static final double ZOOM_LEVEL = 100000;
+    public static final int MAX_TIME_SPEED = (int) Math.pow(2, 20);
 
     private final Projector projector = new Projector(WIDTH, HEIGHT);
 
@@ -29,6 +30,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
     private final double scaleFactor;
     private final Sphere sphere;
     private final BufferedImage earthTexture;
+    private final EarthImageLoader loader;
 
     private int frameCount = 0;
     private long lastFpsTime = System.currentTimeMillis();
@@ -38,8 +40,6 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 //    private Vector3D camera = new Vector3D(0, 0.5, -0.5);
     private Vector3D camera = new Vector3D(0, 0, 0);
     private Vector3D lookDir;
-    private double yaw = 0;
-    private double pitch = 0;
 
     private Vector3D lightDirection = new Vector3D(0, 0, 1);
     private Cube cube;
@@ -65,6 +65,8 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
     private int sphereXMin = Integer.MAX_VALUE;
     private int sphereXMax = 0;
 
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     public EarthRenderer() {
         BufferedImage texture;
         try {
@@ -79,6 +81,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         scaleFactor = 1.05;
         cube = new Cube(new Vector3D(0, 0, 7), 0.0006, 0.002, 0.001);
         sphere = new Sphere(new Vector3D(0, 0, 7), 4.480, texture);
+        loader = new EarthImageLoader();
 
         // Trace rays to generate earth texture
 //        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
@@ -129,19 +132,15 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
             g.drawString("Pixel: (" + mousePixel.getRed() + ", " + mousePixel.getGreen() + ", " + mousePixel.getBlue() + ")", 800, 70);
         }
         g.drawString(String.format("Camera: x: %.2f, y: %.2f, z: %.2f", camera.x(), camera.y(), camera.z()), 800, 90);
-        g.drawString(String.format("Date: " + dateTime), 800, 110);
-        g.drawString(String.format("Min X: " + sphereXMin + ", max x: " + sphereXMax + ", width: " + (sphereXMax - sphereXMin)), 800, 130);
+        g.drawString(String.format("Date: " + DATE_TIME_FORMATTER.format(dateTime)), 800, 110);
+        g.drawString(String.format("Speed: " + timeSpeed), 800, 130);
 
         Vector2D northPos = getNorthPole();
         Vector2D southPos = getSouthPole();
 
-        int radius = 5;
-//        g.drawOval((int) northPos.x(), (int) northPos.y(), radius, radius);
-//        g.drawOval((int) southPos.x(), (int) southPos.y(), radius, radius);
-
         cube.update(dt);
 
-        this.dateTime.plus((int) dtx, ChronoUnit.MILLIS);
+        dateTime = dateTime.plus((int) (dt * timeSpeed), ChronoUnit.MILLIS);
         sphere.update(dateTime);
 
         Vector3D up = new Vector3D(0,1,0);
@@ -167,10 +166,8 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         }
 
         long elapsedTime = System.currentTimeMillis() - startTime;
-        yaw = mouseTotalX * -0.002;
-        pitch = mouseTotalY * 0.002;
 
-        lookDir = Matrix4.identity().rotateX(pitch).rotateY(yaw).multiply(target);
+        lookDir = Matrix4.identity().multiply(target);
         target = camera.add(lookDir);
         Matrix4 cameraMatrix = pointAt(camera, target, up);
 
@@ -215,7 +212,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         frameCount++;
         long time = System.currentTimeMillis();
         if (time - lastFpsTime > 1000) {
-            System.out.println("FPS: " + frameCount + ", yaw: " + yaw + ", pitch: " + pitch);
+            System.out.println("FPS: " + frameCount);
             frameCount = 0;
             lastFpsTime = time;
         }
@@ -369,12 +366,52 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 
     @Override
     public void keyTyped(KeyEvent e) {
-
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
-        pressedKeys.add(e.getKeyCode());
+        if (!pressedKeys.contains(e.getKeyCode())) {
+            pressedKeys.add(e.getKeyCode());
+            adjustTimeSpeed(e);
+            download(e);
+        }
+    }
+
+    private void download(KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.VK_K) {
+            long startTime = System.currentTimeMillis();
+            System.out.println("Downloading images for timestamp " + dateTime);
+            List<BufferedImage> earthImages = loader.getEarthImages(dateTime);
+            long timeTaken = System.currentTimeMillis() - startTime;
+            System.out.println("Loaded " + earthImages.size() + " images in " + timeTaken + "ms");
+
+            startTime = System.currentTimeMillis();
+            List<EarthTexture> earthTextures = earthImages.stream().map(i -> new EarthTexture(sphere, i, dateTime)).toList();
+            timeTaken = System.currentTimeMillis() - startTime;
+            System.out.println("Loaded " + earthTextures.size() + " textures in " + timeTaken + "ms");
+        }
+    }
+
+    private void adjustTimeSpeed(KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.VK_L) {
+            if (timeSpeed >= 1 && timeSpeed < MAX_TIME_SPEED) {
+                timeSpeed = timeSpeed * 2;
+            } else if (timeSpeed == -1 || timeSpeed == 0) {
+                timeSpeed = 1;
+            } else if (timeSpeed < -1){
+                timeSpeed = timeSpeed / 2;
+            }
+        } else if (e.getKeyCode() == KeyEvent.VK_J) {
+            if (timeSpeed > 1) {
+                timeSpeed = timeSpeed / 2;
+            } else if (timeSpeed == 1 || timeSpeed == 0) {
+                timeSpeed = -1;
+            } else if (timeSpeed > -MAX_TIME_SPEED) {
+                timeSpeed = timeSpeed * 2;
+            }
+        } else if (e.getKeyCode() == KeyEvent.VK_K) {
+            timeSpeed = 0;
+        }
     }
 
     @Override

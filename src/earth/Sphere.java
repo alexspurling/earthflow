@@ -4,13 +4,19 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.Temporal;
 
+@SuppressWarnings("DataFlowIssue")
 public class Sphere {
 
     private static final double MAX_TILT = Math.toRadians(23.4);
-    private Vector3D position;
+    private static final Temporal WINTER_2022 = OffsetDateTime.of(2022, 12, 21, 12, 0, 0, 0, ZoneOffset.UTC);
+    public Vector3D position;
     private double radius;
     private BufferedImage earthImage;
+
+    private static final long SECONDS_IN_DAY = 86400;
 
     private Quaternion rotation;
     private OffsetDateTime dateTime;
@@ -19,12 +25,12 @@ public class Sphere {
         this.position = position;
         this.radius = radius;
         this.earthImage = earthImage;
-        this.rotation = getRotation(0);
-        //noinspection DataFlowIssue
         this.dateTime = OffsetDateTime.of(2023, 1, 19, 0, 3, 42, 0, ZoneOffset.UTC);
+        update(this.dateTime);
     }
 
-    private Quaternion getRotation(double daysSinceWinterSolstice) {
+    private Quaternion getSeasonalTilt(OffsetDateTime dateTime) {
+        double daysSinceWinterSolstice = ChronoUnit.DAYS.between(dateTime, WINTER_2022);
         double yearInRadians = daysSinceWinterSolstice / 365.25 * (Math.PI * 2);
         double xAxisTilt = MAX_TILT * Math.cos(yearInRadians);
         double zAxisTilt = 0; // MAX_TILT * Math.sin(yearInRadians); // no need to rotate around the z axis as the DSCOVR satellite compensates for this rotation in its images
@@ -32,10 +38,16 @@ public class Sphere {
                 .multiply(new Quaternion(zAxisTilt, new Vector3D(0, 0, 1)));
     }
 
+    private Quaternion getDailyRotation(OffsetDateTime dateTime) {
+        long seconds = ChronoUnit.SECONDS.between(dateTime, dateTime.truncatedTo(ChronoUnit.DAYS));
+        double theta = (double) seconds / SECONDS_IN_DAY * Math.PI * 2;
+        return new Quaternion(theta, new Vector3D(0, 1, 0));
+    }
+
     public void update(OffsetDateTime dateTime) {
 //        rotation = getRotation(days);
         this.dateTime = dateTime;
-        rotation = getRotation(29).multiply(new Quaternion(0.1 * days / 365.25 * (Math.PI * 2), new Vector3D(0, 1, 0)));
+        rotation = getSeasonalTilt(dateTime).multiply(getDailyRotation(dateTime));
     }
 
     public Intersection getIntersection(Vector3D ray, Vector3D rayOrigin) {
@@ -90,7 +102,7 @@ public class Sphere {
         int vint = (int) (v * earthTexture.getHeight());
         Color earthTextureColour = new Color(earthTexture.getRGB(uint, vint));
         int k = 3;
-        while (earthTextureColour.equals(Color.BLACK) && k <= 9) {
+        while (earthTextureColour.equals(Color.BLACK) && k <= 3) {
             // try to find a nearby pixel to interpolate with
             earthTextureColour = averagePixels(earthTexture, uint, vint, k);
             k += 2;
@@ -142,12 +154,7 @@ public class Sphere {
         double v = 0.5 + Math.asin(d.y()) / Math.PI;
 
         int worldColour = earthImage.getRGB(x * 2, y * 2);
-        Color worldColourColor = new Color(worldColour);
-        if (worldColour == -16777216) {
-            // earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), new Color(0, 200, 0).getRGB());
-        } else {
-            earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), worldColour);
-        }
+        earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), worldColour);
     }
 
 }
