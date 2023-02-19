@@ -1,20 +1,26 @@
 package earth;
 
 import java.awt.image.BufferedImage;
-import java.time.OffsetDateTime;
 
 public class EarthTexture {
 
     private static final int WIDTH = 1024;
     private static final int HEIGHT = 1024;
 
-    private final BufferedImage earthTexture;
+    private static final double FOV = 0.62;
+    public static final double RAY_Z = Math.tan(Math.toRadians(90 - (FOV / 2)));
 
-    public EarthTexture(Sphere sphere, BufferedImage earthImage, OffsetDateTime dateTime) {
-        earthTexture = renderEarthTexture(sphere, earthImage);
+    private final Sphere sphere;
+    private final BufferedImage earthTexture;
+    private final EarthImage image;
+
+    public EarthTexture(Sphere sphere, EarthImage image) {
+        this.sphere = sphere;
+        this.image = image;
+        earthTexture = renderEarthTexture(image.image());
     }
 
-    private BufferedImage renderEarthTexture(Sphere sphere, BufferedImage earthImage) {
+    private BufferedImage renderEarthTexture(BufferedImage earthImage) {
 
         Vector3D camera = new Vector3D(0, 0, 0);
         Vector3D lightDirection = new Vector3D(0, 0, 1);
@@ -29,7 +35,7 @@ public class EarthTexture {
 
                 double x3d = (double) x / (WIDTH / 2.0) - 1;
                 double y3d = (double) (HEIGHT - y) / (HEIGHT / 2.0) - 1;
-                Vector3D ray = new Vector3D(x3d, y3d, 1);
+                Vector3D ray = new Vector3D(x3d, y3d, RAY_Z);
 
                 Intersection intersection = sphere.getIntersection(ray, camera);
 
@@ -40,7 +46,7 @@ public class EarthTexture {
 
                 double normalDotLight = intersection.normal().dot(lightDirection);
                 if (normalDotLight >= -1 && normalDotLight <= 0) {
-                    setMappedTextureColour(x, y, intersection.point().subtract(sphere.position), earthImage, earthTexture);
+                    setMappedTextureColour(x, y, intersection.point(), earthImage, earthTexture);
                 }
             }
         }
@@ -50,8 +56,10 @@ public class EarthTexture {
 
 
     public void setMappedTextureColour(int x, int y, Vector3D point, BufferedImage earthImage, BufferedImage earthTexture) {
-        double u = 0.5 + Math.atan2(point.z(), point.x()) / (Math.PI * 2);
-        double v = 0.5 + Math.asin(point.y()) / Math.PI;
+        Vector3D d = point.subtract(sphere.position).unit();
+        d = sphere.getRotation(image.metadata().date()).rotatePoint(d);
+        double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
+        double v = 0.5 + Math.asin(d.y()) / Math.PI;
 
         int worldColour = earthImage.getRGB(x * 2, y * 2);
         earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), worldColour);

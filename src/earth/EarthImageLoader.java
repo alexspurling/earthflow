@@ -39,7 +39,7 @@ public class EarthImageLoader {
 
     }
 
-    public List<BufferedImage> getEarthImages(OffsetDateTime dateTime) {
+    public List<EarthImage> getEarthImages(OffsetDateTime dateTime) {
         Metadata metadata = getMetadata(dateTime);
 
         Optional<ImageMetadata> image1 = metadata.getImageBefore(dateTime);
@@ -58,7 +58,7 @@ public class EarthImageLoader {
             return Collections.emptyList();
         }
         return Stream.of(image1, image2).flatMap(x ->
-                x.stream().map(this::loadImage))
+                x.stream().map(im -> new EarthImage(im, loadImage(im))))
                 .collect(Collectors.toList());
     }
 

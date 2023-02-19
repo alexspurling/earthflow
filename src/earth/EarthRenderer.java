@@ -7,12 +7,12 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.IntStream;
 
 public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotionListener, KeyListener {
 
@@ -20,16 +20,19 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
     public static final int WIDTH = 1024;
     public static final int HEIGHT = 1024;
 
+    private static final double FOV = 0.62;
+    public static final double RAY_Z = Math.tan(Math.toRadians(90 - (FOV / 2)));
+
     private static final double ZOOM_LEVEL = 100000;
     public static final int MAX_TIME_SPEED = (int) Math.pow(2, 20);
 
     private final Projector projector = new Projector(WIDTH, HEIGHT);
 
-    private final BufferedImage img;
+    private final BufferedImage canvas;
     private final double distance;
     private final double scaleFactor;
     private final Sphere sphere;
-    private final BufferedImage earthTexture;
+    private BufferedImage earthTexture;
     private final EarthImageLoader loader;
 
     private int frameCount = 0;
@@ -44,7 +47,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
     private Vector3D lightDirection = new Vector3D(0, 0, 1);
     private Cube cube;
 
-    private long lastFrameTime;
+    private long lastFrameTime = System.nanoTime();
     private long startTime;
 
     private boolean mouseDown;
@@ -58,7 +61,8 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
     private int mouseTotalY;
     private Set<Integer> pressedKeys = new HashSet<>();
 
-    private OffsetDateTime dateTime = OffsetDateTime.now();
+//    private OffsetDateTime dateTime = OffsetDateTime.now();
+    private OffsetDateTime dateTime = OffsetDateTime.of(2023, 1, 19, 0, 3, 42, 0, ZoneOffset.UTC);
 
     private int timeSpeed = 1;
 
@@ -68,10 +72,10 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public EarthRenderer() {
-        BufferedImage texture;
+        BufferedImage earthImagePng;
         try {
-            texture = ImageIO.read(new File("images/epic_1b_20230119000830.png"));
-            img = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+            earthImagePng = ImageIO.read(new File("images/epic_1b_20230119000830.png"));
+            canvas = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
             earthTexture = new BufferedImage(WIDTH * 4, HEIGHT * 2, BufferedImage.TYPE_INT_RGB);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -80,31 +84,11 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         distance = Math.sqrt(Math.pow(513256.302301, 2) + Math.pow(-1132637.821089, 2) + Math.pow(-676524.885803, 2));
         scaleFactor = 1.05;
         cube = new Cube(new Vector3D(0, 0, 7), 0.0006, 0.002, 0.001);
-        sphere = new Sphere(new Vector3D(0, 0, 7), 4.480, texture);
+        sphere = new Sphere(new Vector3D(0, 0, distance), 6378);
         loader = new EarthImageLoader();
 
-        // Trace rays to generate earth texture
-//        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
-        for (int x = 0; x < WIDTH; x++) {
-            for (int y = 0; y < HEIGHT; y++) {
-
-                double x3d = (double) x / (WIDTH / 2.0) - 1;
-                double y3d = (double) (HEIGHT - y) / (HEIGHT / 2.0) - 1;
-                Vector3D ray = new Vector3D(x3d, y3d, 1);
-
-                Intersection intersection = sphere.getIntersection(ray, camera);
-
-                if (intersection == null) continue;
-
-                double normalDotCamera = intersection.normal().dot(intersection.point().subtract(camera));
-                if (normalDotCamera > 0) continue;
-
-                double normalDotLight = intersection.normal().dot(lightDirection);
-                if (normalDotLight >= -1 && normalDotLight <= 0) {
-                    sphere.setMappedTextureColour(x, y, intersection.point(), earthTexture);
-                }
-            }
-        }
+        EarthImage earthImage = new EarthImage(new ImageMetadata("epic_1b_20230119000830", dateTime), earthImagePng);
+        earthTexture = new EarthTexture(sphere, earthImage).getEarthTexture();
 
         startTime = System.currentTimeMillis();
     }
@@ -123,20 +107,17 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 //        dt = 0.2;
 
         g.setColor(new Color(123, 234, 12));
-        g.drawImage(img, 0, 0, null);
-        g.drawImage(earthTexture, WIDTH, 0, null);
+        g.drawImage(canvas, 0, 0, null);
+        g.drawImage(earthTexture, WIDTH, 0, 800, 400, null);
 
         g.drawString("Mouse: x: " + mouseX + ", y: " + mouseY, 800, 50);
-        if (mouseX > 0 && mouseX * 2 < img.getWidth() && mouseY > 0 && mouseY * 2 < img.getHeight()) {
-            var mousePixel = new Color(img.getRGB(mouseX * 2, mouseY * 2));
+        if (mouseX > 0 && mouseX * 2 < canvas.getWidth() && mouseY > 0 && mouseY * 2 < canvas.getHeight()) {
+            var mousePixel = new Color(canvas.getRGB(mouseX * 2, mouseY * 2));
             g.drawString("Pixel: (" + mousePixel.getRed() + ", " + mousePixel.getGreen() + ", " + mousePixel.getBlue() + ")", 800, 70);
         }
         g.drawString(String.format("Camera: x: %.2f, y: %.2f, z: %.2f", camera.x(), camera.y(), camera.z()), 800, 90);
         g.drawString(String.format("Date: " + DATE_TIME_FORMATTER.format(dateTime)), 800, 110);
         g.drawString(String.format("Speed: " + timeSpeed), 800, 130);
-
-        Vector2D northPos = getNorthPole();
-        Vector2D southPos = getSouthPole();
 
         cube.update(dt);
 
@@ -177,15 +158,15 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 //        sphere.update(days);
 
         // Render sphere using generated earth texture
-        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
-//        for (int x = 0; x < WIDTH; x++) {
+//        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
+        for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
                 // Reset the colour of each pixel
-                img.setRGB(x, y, 0);
+                canvas.setRGB(x, y, 0);
 
                 double x3d = (double) x / (WIDTH / 2.0) - 1;
                 double y3d = (double) (HEIGHT - y) / (HEIGHT / 2.0) - 1;
-                Vector3D ray = new Vector3D(x3d, y3d, 1);
+                Vector3D ray = new Vector3D(x3d, y3d, RAY_Z);
 
                 Intersection intersection = sphere.getIntersection(ray, camera);
 
@@ -198,10 +179,10 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
                 if (normalDotLight >= -1 && normalDotLight <= 0) {
                     Color texColour = sphere.getTextureColour(intersection.point(), earthTexture);
                     Color litColour = multiplyColour(texColour, -normalDotLight);
-                    img.setRGB(x, y, litColour.getRGB());
+                    canvas.setRGB(x, y, litColour.getRGB());
                 }
             }
-        });
+        }
 
 //        Matrix4 cubeWorldMatrix = cube.getTransform();
 //        for (Triangle tri : cube.getTriangles()) {
@@ -307,22 +288,6 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         g.drawLine((int) fromProjected.x(), (int) fromProjected.y(), (int) toProjected.x(), (int) toProjected.y());
     }
 
-    // TODO also add in earth's rotation around the sun which affects the apparent tilt
-    private Vector2D getSouthPole() {
-        double tiltAngle = 23.4;
-        double earthPolarRadius = -6356.752;
-        double polePosition = Math.cos(tiltAngle * Math.PI / 180) * earthPolarRadius;
-        return projector.project(new Vector3D(0, polePosition, distance * scaleFactor));
-    }
-
-    // TODO also add in earth's rotation around the sun which affects the apparent tilt
-    private Vector2D getNorthPole() {
-        double tiltAngle = 23.4;
-        double earthPolarRadius = 6356.752;
-        double polePosition = Math.cos(tiltAngle * Math.PI / 180) * earthPolarRadius;
-        return projector.project(new Vector3D(0, polePosition, distance * scaleFactor));
-    }
-
     @Override
     public void mouseDragged(MouseEvent e) {
         mouseDeltaX = e.getX() - mouseStartX;
@@ -381,14 +346,17 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
         if (e.getKeyCode() == KeyEvent.VK_K) {
             long startTime = System.currentTimeMillis();
             System.out.println("Downloading images for timestamp " + dateTime);
-            List<BufferedImage> earthImages = loader.getEarthImages(dateTime);
+            List<EarthImage> earthImages = loader.getEarthImages(dateTime);
             long timeTaken = System.currentTimeMillis() - startTime;
             System.out.println("Loaded " + earthImages.size() + " images in " + timeTaken + "ms");
 
             startTime = System.currentTimeMillis();
-            List<EarthTexture> earthTextures = earthImages.stream().map(i -> new EarthTexture(sphere, i, dateTime)).toList();
+            List<EarthTexture> earthTextures = earthImages.stream().map(i -> new EarthTexture(sphere, i)).toList();
             timeTaken = System.currentTimeMillis() - startTime;
             System.out.println("Loaded " + earthTextures.size() + " textures in " + timeTaken + "ms");
+            if (!earthTextures.isEmpty()) {
+                earthTexture = earthTextures.get(0).getEarthTexture();
+            }
         }
     }
 

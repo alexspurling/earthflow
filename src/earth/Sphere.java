@@ -14,17 +14,14 @@ public class Sphere {
     private static final Temporal WINTER_2022 = OffsetDateTime.of(2022, 12, 21, 12, 0, 0, 0, ZoneOffset.UTC);
     public Vector3D position;
     private double radius;
-    private BufferedImage earthImage;
-
     private static final long SECONDS_IN_DAY = 86400;
 
     private Quaternion rotation;
     private OffsetDateTime dateTime;
 
-    public Sphere(Vector3D position, double radius, BufferedImage earthImage) {
+    public Sphere(Vector3D position, double radius) {
         this.position = position;
         this.radius = radius;
-        this.earthImage = earthImage;
         this.dateTime = OffsetDateTime.of(2023, 1, 19, 0, 3, 42, 0, ZoneOffset.UTC);
         update(this.dateTime);
     }
@@ -39,15 +36,19 @@ public class Sphere {
     }
 
     private Quaternion getDailyRotation(OffsetDateTime dateTime) {
-        long seconds = ChronoUnit.SECONDS.between(dateTime, dateTime.truncatedTo(ChronoUnit.DAYS));
-        double theta = (double) seconds / SECONDS_IN_DAY * Math.PI * 2;
+        long seconds = ChronoUnit.SECONDS.between(dateTime.truncatedTo(ChronoUnit.DAYS), dateTime);
+        double theta = ((double) seconds / SECONDS_IN_DAY) * Math.PI * 2;
         return new Quaternion(theta, new Vector3D(0, 1, 0));
     }
 
     public void update(OffsetDateTime dateTime) {
 //        rotation = getRotation(days);
         this.dateTime = dateTime;
-        rotation = getSeasonalTilt(dateTime).multiply(getDailyRotation(dateTime));
+        rotation = getRotation(dateTime);
+    }
+
+    public Quaternion getRotation(OffsetDateTime dateTime) {
+        return getSeasonalTilt(dateTime).multiply(getDailyRotation(dateTime));
     }
 
     public Intersection getIntersection(Vector3D ray, Vector3D rayOrigin) {
@@ -81,14 +82,14 @@ public class Sphere {
 
         Color chequeredColour;
 
-        if ((int)(u * 10) % 2 == 0) {
-            if ((int)(v * 10) % 2 == 0) {
+        if ((int)(u * 8) % 2 == 0) {
+            if ((int)(v * 8) % 2 == 0) {
                 chequeredColour = new Color(0, 0, 0);
             } else {
                 chequeredColour = new Color(255, 255, 255);
             }
         } else {
-            if ((int) (v * 10) % 2 == 0) {
+            if ((int) (v * 8) % 2 == 0) {
                 chequeredColour = new Color(255, 255, 255);
             } else {
                 chequeredColour = new Color(0, 0, 0);
@@ -145,16 +146,6 @@ public class Sphere {
         int green = (int) (colorA.getGreen() * (1 - blend) + colorB.getGreen() * blend);
         int blue = (int) (colorA.getBlue() * (1 - blend) + colorB.getBlue() * blend);
         return new Color(red, green, blue);
-    }
-
-    public void setMappedTextureColour(int x, int y, Vector3D point, BufferedImage earthTexture) {
-        Vector3D d = point.subtract(position).unit();
-        d = rotation.rotatePoint(d);
-        double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
-        double v = 0.5 + Math.asin(d.y()) / Math.PI;
-
-        int worldColour = earthImage.getRGB(x * 2, y * 2);
-        earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), worldColour);
     }
 
 }
