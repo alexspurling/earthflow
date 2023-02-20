@@ -13,8 +13,6 @@ public class RenderEarth {
 
         main.start();
 
-        main.addMouseMotionListener(earthRenderer);
-        main.addMouseListener(earthRenderer);
         main.addKeyListener(earthRenderer);
     }
 }

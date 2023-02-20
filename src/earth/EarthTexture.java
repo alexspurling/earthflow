@@ -29,8 +29,11 @@ public class EarthTexture {
         // Trace rays to generate earth texture
 //        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
 
+        long startTime = System.currentTimeMillis();
         BufferedImage earthTexture = new BufferedImage(WIDTH * 4, HEIGHT * 2, BufferedImage.TYPE_INT_RGB);
+        System.out.println("Created buffered image in " + (System.currentTimeMillis() - startTime));
 
+        startTime = System.currentTimeMillis();
         for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
 
@@ -51,19 +54,27 @@ public class EarthTexture {
                 }
             }
         }
+        System.out.println("Ray traced texture " + (System.currentTimeMillis() - startTime));
 
         int black = Color.BLACK.getRGB();
 
-        for (int x = 0; x < WIDTH * 4; x++) {
-            for (int y = 0; y < HEIGHT * 2; y++) {
-                int k = 1;
-                while (earthTexture.getRGB(x, y) == black && k <= 9) {
-                    // try to find a nearby pixel to interpolate with
-                    earthTexture.setRGB(x, y, averagePixels(earthTexture, x, y, k));
-                    k += 2;
-                }
-            }
-        }
+        int numPixels = 0;
+
+        startTime = System.currentTimeMillis();
+//        for (int x = 0; x < WIDTH * 4; x++) {
+//            for (int y = 0; y < HEIGHT * 2; y++) {
+//                int k = 1;
+//                while (earthTexture.getRGB(x, y) == black && k <= 3) {
+//                    // try to find a nearby pixel to interpolate with
+//                    earthTexture.setRGB(x, y, averagePixels(earthTexture, x, y, k));
+//                    k += 2;
+//                    numPixels += 1;
+//                }
+//            }
+//        }
+        System.out.println("Filled in " + numPixels + " gaps in " + (System.currentTimeMillis() - startTime));
+
+        System.out.println("Done");
 
         return earthTexture;
     }
