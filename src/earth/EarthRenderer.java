@@ -13,6 +13,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotionListener, KeyListener {
 
@@ -108,7 +109,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 
         g.setColor(new Color(123, 234, 12));
         g.drawImage(canvas, 0, 0, null);
-        g.drawImage(earthTexture, WIDTH, 0, 800, 400, null);
+        g.drawImage(earthTexture, WIDTH, 0, 1600, 800, null);
 
         g.drawString("Mouse: x: " + mouseX + ", y: " + mouseY, 800, 50);
         if (mouseX > 0 && mouseX * 2 < canvas.getWidth() && mouseY > 0 && mouseY * 2 < canvas.getHeight()) {
@@ -158,8 +159,8 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
 //        sphere.update(days);
 
         // Render sphere using generated earth texture
-//        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
-        for (int x = 0; x < WIDTH; x++) {
+        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
+//        for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
                 // Reset the colour of each pixel
                 canvas.setRGB(x, y, 0);
@@ -182,7 +183,7 @@ public class EarthRenderer implements CanvasRenderer, MouseListener, MouseMotion
                     canvas.setRGB(x, y, litColour.getRGB());
                 }
             }
-        }
+        });
 
 //        Matrix4 cubeWorldMatrix = cube.getTransform();
 //        for (Triangle tri : cube.getTriangles()) {

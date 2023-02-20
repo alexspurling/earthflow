@@ -1,5 +1,6 @@
 package earth;
 
+import java.awt.*;
 import java.awt.image.BufferedImage;
 
 public class EarthTexture {
@@ -51,6 +52,19 @@ public class EarthTexture {
             }
         }
 
+        int black = Color.BLACK.getRGB();
+
+        for (int x = 0; x < WIDTH * 4; x++) {
+            for (int y = 0; y < HEIGHT * 2; y++) {
+                int k = 1;
+                while (earthTexture.getRGB(x, y) == black && k <= 9) {
+                    // try to find a nearby pixel to interpolate with
+                    earthTexture.setRGB(x, y, averagePixels(earthTexture, x, y, k));
+                    k += 2;
+                }
+            }
+        }
+
         return earthTexture;
     }
 
@@ -63,6 +77,37 @@ public class EarthTexture {
 
         int worldColour = earthImage.getRGB(x * 2, y * 2);
         earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), worldColour);
+    }
+
+
+    private int averagePixels(BufferedImage earthTexture, int x, int y, int kernelSize) {
+        int kernelRadius = kernelSize / 2;
+        int sumRed = 0;
+        int sumGreen = 0;
+        int sumBlue = 0;
+        int count = 0;
+        for (int i = -kernelRadius; i <= kernelRadius; i++) {
+            for (int j = -kernelRadius; j <= kernelRadius; j++) {
+                int xIndex = x + i;
+                int yIndex = y + j;
+                if (xIndex >= 0 && xIndex < earthTexture.getWidth() && yIndex >= 0 && yIndex < earthTexture.getHeight()) {
+                    Color pixelColor = new Color(earthTexture.getRGB(xIndex, yIndex));
+                    if (!pixelColor.equals(Color.BLACK)) {
+                        sumRed += pixelColor.getRed();
+                        sumGreen += pixelColor.getGreen();
+                        sumBlue += pixelColor.getBlue();
+                        count++;
+                    }
+                }
+            }
+        }
+        if (count == 0) {
+            return Color.BLACK.getRGB();
+        }
+        int averageRed = sumRed / count;
+        int averageGreen = sumGreen / count;
+        int averageBlue = sumBlue / count;
+        return new Color(averageRed, averageGreen, averageBlue).getRGB();
     }
 
     public BufferedImage getEarthTexture() {

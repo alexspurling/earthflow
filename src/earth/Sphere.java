@@ -102,43 +102,7 @@ public class Sphere {
         int uint = (int) (u * earthTexture.getWidth());
         int vint = (int) (v * earthTexture.getHeight());
         Color earthTextureColour = new Color(earthTexture.getRGB(uint, vint));
-        int k = 3;
-        while (earthTextureColour.equals(Color.BLACK) && k <= 3) {
-            // try to find a nearby pixel to interpolate with
-            earthTextureColour = averagePixels(earthTexture, uint, vint, k);
-            k += 2;
-        }
         return lerpColor(chequeredColour, earthTextureColour, 0.9f);
-    }
-
-    private Color averagePixels(BufferedImage earthTexture, int x, int y, int kernelSize) {
-        int kernelRadius = kernelSize / 2;
-        int sumRed = 0;
-        int sumGreen = 0;
-        int sumBlue = 0;
-        int count = 0;
-        for (int i = -kernelRadius; i <= kernelRadius; i++) {
-            for (int j = -kernelRadius; j <= kernelRadius; j++) {
-                int xIndex = x + i;
-                int yIndex = y + j;
-                if (xIndex >= 0 && xIndex < earthTexture.getWidth() && yIndex >= 0 && yIndex < earthTexture.getHeight()) {
-                    Color pixelColor = new Color(earthTexture.getRGB(xIndex, yIndex));
-                    if (!pixelColor.equals(Color.BLACK)) {
-                        sumRed += pixelColor.getRed();
-                        sumGreen += pixelColor.getGreen();
-                        sumBlue += pixelColor.getBlue();
-                        count++;
-                    }
-                }
-            }
-        }
-        if (count == 0) {
-            return Color.BLACK;
-        }
-        int averageRed = sumRed / count;
-        int averageGreen = sumGreen / count;
-        int averageBlue = sumBlue / count;
-        return new Color(averageRed, averageGreen, averageBlue);
     }
 
     private static Color lerpColor(Color colorA, Color colorB, float blend) {
