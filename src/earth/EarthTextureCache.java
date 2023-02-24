@@ -50,12 +50,12 @@ public class EarthTextureCache {
         if (lastDateTime != null) {
             if (dateTime.isAfter(lastDateTime)) {
                 // Time is moving forward
-                loadTexturesAfter(dateTime, 4);
+                loadTexturesAfter(dateTime, 1);
                 loadTexturesBefore(dateTime, 1);
                 deleteTexturesBefore(dateTime, 1);
             } else if (dateTime.isBefore(lastDateTime)) {
                 // Time is moving backwards
-                loadTexturesBefore(dateTime, 4);
+                loadTexturesBefore(dateTime, 1);
                 loadTexturesAfter(dateTime, 1);
                 deleteTexturesAfter(dateTime, 1);
             }

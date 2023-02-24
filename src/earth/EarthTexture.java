@@ -39,8 +39,14 @@ public class EarthTexture implements Texture {
         int width = WIDTH * 2;
         int height = HEIGHT * 2;
 
+        double lastUX = -1;
+        double lastVY = -1;
+
+        double yDelta = 1;
+
         for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
+            double y = 0;
+            while (y < height) {
 
                 double x3d = (double) x / (width / 2.0) - 1;
                 double y3d = (double) (height - y) / (height / 2.0) - 1;
@@ -48,15 +54,39 @@ public class EarthTexture implements Texture {
 
                 Intersection intersection = sphere.getIntersection(ray, camera);
 
-                if (intersection == null) continue;
+                if (intersection != null) {
 
-                double normalDotCamera = intersection.normal().dot(intersection.point().subtract(camera));
-                if (normalDotCamera > 0) continue;
+                    double normalDotCamera = intersection.normal().dot(intersection.point().subtract(camera));
+                    if (normalDotCamera > 0) continue;
 
-                double normalDotLight = intersection.normal().dot(lightDirection);
-                if (normalDotLight >= -1 && normalDotLight <= 0) {
-                    setMappedTextureColour(x, y, intersection.point(), earthImage, earthTexture);
+                    double normalDotLight = intersection.normal().dot(lightDirection);
+                    if (normalDotLight >= -1 && normalDotLight <= 0) {
+
+                        Vector3D d = intersection.point().subtract(sphere.position).unit();
+                        d = sphere.getRotation(image.metadata().date()).rotatePoint(d);
+                        double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
+                        double v = 0.5 + Math.asin(d.y()) / Math.PI;
+
+                        int worldColour = earthImage.getRGB(x, (int) y);
+                        double ux = earthTexture.getWidth() * u;
+                        double vy = earthTexture.getHeight() * v;
+
+                        earthTexture.setRGB((int) ux, (int) vy, worldColour);
+
+                        if (lastUX != -1) {
+                            double uvDifference = Math.sqrt((ux - lastUX) * (ux - lastUX) + (vy - lastVY) * (vy - lastVY));
+                            yDelta /= uvDifference;
+
+//                            if (yDelta < 0.0001) {
+//                                System.out.println("x: " + x + ", y: " + y + ", yDelta: " + yDelta + ", uvDifference: " + uvDifference);
+//                            }
+                        }
+
+                        lastUX = ux;
+                        lastVY = vy;
+                    }
                 }
+                y += yDelta;
             }
         }
         System.out.println("Ray traced texture " + (System.currentTimeMillis() - startTime));
@@ -66,33 +96,22 @@ public class EarthTexture implements Texture {
         int numPixels = 0;
 
         startTime = System.currentTimeMillis();
-        for (int x = 0; x < earthTexture.getWidth(); x++) {
-            for (int y = 0; y < earthTexture.getHeight(); y++) {
-                int k = 1;
-                while (earthTexture.getRGB(x, y) == black && k <= 3) {
-                    // try to find a nearby pixel to interpolate with
-                    earthTexture.setRGB(x, y, averagePixels(earthTexture, x, y, k));
-                    k += 2;
-                    numPixels += 1;
-                }
-            }
-        }
+//        for (int x = 0; x < earthTexture.getWidth(); x++) {
+//            for (int y = 0; y < earthTexture.getHeight(); y++) {
+//                int k = 1;
+//                while (earthTexture.getRGB(x, y) == black && k <= 3) {
+//                    // try to find a nearby pixel to interpolate with
+//                    earthTexture.setRGB(x, y, averagePixels(earthTexture, x, y, k));
+//                    k += 2;
+//                    numPixels += 1;
+//                }
+//            }
+//        }
         System.out.println("Filled in " + numPixels + " gaps in " + (System.currentTimeMillis() - startTime));
 
         System.out.println("Done");
 
         return earthTexture;
-    }
-
-
-    public void setMappedTextureColour(int x, int y, Vector3D point, BufferedImage earthImage, BufferedImage earthTexture) {
-        Vector3D d = point.subtract(sphere.position).unit();
-        d = sphere.getRotation(image.metadata().date()).rotatePoint(d);
-        double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
-        double v = 0.5 + Math.asin(d.y()) / Math.PI;
-
-        int worldColour = earthImage.getRGB(x, y);
-        earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), worldColour);
     }
 
 
