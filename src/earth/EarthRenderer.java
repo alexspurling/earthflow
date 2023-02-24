@@ -90,8 +90,8 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
 
         g.setColor(new Color(123, 234, 12));
         g.drawImage(canvas, 0, 0, null);
-        g.drawImage(earthTexture1.getTexture(), WIDTH, 0, 1600, 800, null);
-        g.drawImage(earthTexture2.getTexture(), WIDTH, 800, 1600, 800, null);
+        g.drawImage(earthTexture1.getTexture(), WIDTH, 0, 1000, 500, null);
+        g.drawImage(earthTexture2.getTexture(), WIDTH, 500, 1000, 500, null);
 
         g.drawString("FPS: " + fps, 20, 20);
         g.drawString(String.format("Date: " + DATE_TIME_FORMATTER.format(dateTime)), 20, 40);

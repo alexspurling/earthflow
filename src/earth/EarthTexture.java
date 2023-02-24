@@ -35,11 +35,15 @@ public class EarthTexture implements Texture {
         System.out.println("Created buffered image in " + (System.currentTimeMillis() - startTime));
 
         startTime = System.currentTimeMillis();
-        for (int x = 0; x < WIDTH; x++) {
-            for (int y = 0; y < HEIGHT; y++) {
 
-                double x3d = (double) x / (WIDTH / 2.0) - 1;
-                double y3d = (double) (HEIGHT - y) / (HEIGHT / 2.0) - 1;
+        int width = WIDTH * 2;
+        int height = HEIGHT * 2;
+
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+
+                double x3d = (double) x / (width / 2.0) - 1;
+                double y3d = (double) (height - y) / (height / 2.0) - 1;
                 Vector3D ray = new Vector3D(x3d, y3d, RAY_Z);
 
                 Intersection intersection = sphere.getIntersection(ray, camera);
@@ -87,7 +91,7 @@ public class EarthTexture implements Texture {
         double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
         double v = 0.5 + Math.asin(d.y()) / Math.PI;
 
-        int worldColour = earthImage.getRGB(x * 2, y * 2);
+        int worldColour = earthImage.getRGB(x, y);
         earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), worldColour);
     }
 
