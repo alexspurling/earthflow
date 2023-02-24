@@ -24,77 +24,73 @@ public class EarthTexture implements Texture {
 
     private BufferedImage renderEarthTexture(BufferedImage earthImage) {
 
-        Vector3D camera = new Vector3D(0, 0, 0);
-        Vector3D lightDirection = new Vector3D(0, 0, 1);
-
         // Trace rays to generate earth texture
-//        IntStream.range(0, WIDTH).parallel().forEach((x) -> {
+        BufferedImage earthTexture = new BufferedImage(WIDTH * 4, HEIGHT * 2, BufferedImage.TYPE_INT_RGB);
 
         long startTime = System.currentTimeMillis();
-        BufferedImage earthTexture = new BufferedImage(WIDTH * 4, HEIGHT * 2, BufferedImage.TYPE_INT_RGB);
-        System.out.println("Created buffered image in " + (System.currentTimeMillis() - startTime));
-
-        startTime = System.currentTimeMillis();
 
         int width = WIDTH * 2;
         int height = HEIGHT * 2;
 
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
+        Quaternion sphereRotation = sphere.getRotation(image.metadata().date());
+        Quaternion sphereRotationInv = sphereRotation.inverse();
 
-                double x3d = (double) x / (width / 2.0) - 1;
-                double y3d = (double) (height - y) / (height / 2.0) - 1;
-                Vector3D ray = new Vector3D(x3d, y3d, RAY_Z);
+        int tWidth = width * 2;
+        int tHeight = height;
 
-                Intersection intersection = sphere.getIntersection(ray, camera);
+        try {
+            // For each pixel in the texture:
+            // 1. Find the point in on a 3d sphere that it maps to
+            // 2. Project a ray backwards to find the 2d x,y "screen" coordindate
+            // that would intersect this point
+            // 3. Grab the pixel colour of the earth image at these x,y coords
+            for (int ux = 0; ux < WIDTH * 4; ux++) {
+                for (int vy = 0; vy < WIDTH * 2; vy++) {
 
-                if (intersection == null) continue;
+                    if (ux == 205 && vy == 575) {
+                        System.out.println("Stop");
+                    }
+                    double u = (double) ux / tWidth;
+                    double v = (double) vy / tHeight;
 
-                double normalDotCamera = intersection.normal().dot(intersection.point().subtract(camera));
-                if (normalDotCamera > 0) continue;
+                    // Invert the UV mapping. Taken from:
+                    // https://math.stackexchange.com/questions/1395679/how-would-i-find-a-point-on-a-sphere-with-a-uv-coordinate
+                    double dx = Math.cos(Math.PI * (0.5 - v)) * Math.cos(2 * Math.PI * (u - 0.5));
+                    double dy = Math.sin(Math.PI * (v - 0.5));
+                    double dz = Math.cos(Math.PI * (0.5 - v)) * Math.sin(2 * Math.PI * (u - 0.5));
 
-                double normalDotLight = intersection.normal().dot(lightDirection);
-                if (normalDotLight >= -1 && normalDotLight <= 0) {
-                    setMappedTextureColour(x, y, intersection.point(), earthImage, earthTexture);
+                    Vector3D d = new Vector3D(dx, dy, dz);
+                    Vector3D i3 = sphereRotationInv.rotatePoint(d);
+                    Vector3D i2 = i3.scale(sphere.radius);
+
+                    if (i2.z() > 0) {
+                        continue;
+                    }
+                    Vector3D intersection = i2.add(sphere.position);
+
+                    double x3d = intersection.x() * RAY_Z / intersection.z();
+                    double y3d = intersection.y() * RAY_Z / intersection.z();
+
+                    double x = (x3d + 1) * (width / 2.0);
+                    double y = height - (y3d + 1) * (height / 2.0);
+
+                    x = Math.max(Math.min(x, width - 1), 0);
+                    y = Math.max(Math.min(y, width - 1), 0);
+
+                    int colour = earthImage.getRGB((int) x, (int) y);
+                    earthTexture.setRGB(ux, vy, colour);
                 }
             }
+        } catch (Throwable t) {
+            t.printStackTrace();
+            System.out.println("Oh dear");
         }
         System.out.println("Ray traced texture " + (System.currentTimeMillis() - startTime));
-
-        int black = Color.BLACK.getRGB();
-
-        int numPixels = 0;
-
-        startTime = System.currentTimeMillis();
-        for (int x = 0; x < earthTexture.getWidth(); x++) {
-            for (int y = 0; y < earthTexture.getHeight(); y++) {
-                int k = 1;
-                while (earthTexture.getRGB(x, y) == black && k <= 3) {
-                    // try to find a nearby pixel to interpolate with
-                    earthTexture.setRGB(x, y, averagePixels(earthTexture, x, y, k));
-                    k += 2;
-                    numPixels += 1;
-                }
-            }
-        }
-        System.out.println("Filled in " + numPixels + " gaps in " + (System.currentTimeMillis() - startTime));
 
         System.out.println("Done");
 
         return earthTexture;
     }
-
-
-    public void setMappedTextureColour(int x, int y, Vector3D point, BufferedImage earthImage, BufferedImage earthTexture) {
-        Vector3D d = point.subtract(sphere.position).unit();
-        d = sphere.getRotation(image.metadata().date()).rotatePoint(d);
-        double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
-        double v = 0.5 + Math.asin(d.y()) / Math.PI;
-
-        int worldColour = earthImage.getRGB(x, y);
-        earthTexture.setRGB((int) (earthTexture.getWidth() * u), (int) (earthTexture.getHeight() * v), worldColour);
-    }
-
 
     private int averagePixels(BufferedImage earthTexture, int x, int y, int kernelSize) {
         int kernelRadius = kernelSize / 2;

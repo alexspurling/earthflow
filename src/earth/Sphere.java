@@ -12,8 +12,8 @@ public class Sphere {
 
     private static final double MAX_TILT = Math.toRadians(23.4);
     private static final Temporal WINTER_2022 = OffsetDateTime.of(2022, 12, 21, 12, 0, 0, 0, ZoneOffset.UTC);
-    public Vector3D position;
-    private double radius;
+    public final Vector3D position;
+    public final double radius;
     private static final long SECONDS_IN_DAY = 86400;
 
     private Quaternion rotation;
@@ -80,31 +80,29 @@ public class Sphere {
         double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
         double v = 0.5 + Math.asin(d.y()) / Math.PI;
 
-//        Color chequeredColour;
-//
-//        if ((int)(u * 8) % 2 == 0) {
-//            if ((int)(v * 8) % 2 == 0) {
-//                chequeredColour = new Color(0, 0, 0);
-//            } else {
-//                chequeredColour = new Color(255, 255, 255);
-//            }
-//        } else {
-//            if ((int) (v * 8) % 2 == 0) {
-//                chequeredColour = new Color(255, 255, 255);
-//            } else {
-//                chequeredColour = new Color(0, 0, 0);
-//            }
-//        }
-
-        // Based on the current date / time, find the nearest two earth textures and the distance between them
-        // Load all the earth images and create a map by date.
-        // Load the required pixel as a combination of two earth textures.
         int uint = (int) (u * earthTexture1.getWidth());
         int vint = (int) (v * earthTexture1.getHeight());
+
+        if (uint < 0 || vint < 0 || uint >= earthTexture1.getWidth() || vint >= earthTexture1.getHeight()) {
+            System.out.println("u/v out of bounds!");
+            System.out.println("point: " + point);
+            System.out.println("d: " + d);
+            System.out.println("u: " + u);
+            System.out.println("v: " + v);
+            System.out.println("uint: " + uint);
+            System.out.println("vint: " + vint);
+        }
+
         Color earthTexture1Colour = new Color(earthTexture1.getRGB(uint, vint));
         Color earthTexture2Colour = new Color(earthTexture2.getRGB(uint, vint));
 
         return lerpColor(earthTexture1Colour, earthTexture2Colour, blend);
+    }
+
+    private double brightness(Color earthTexture1Colour) {
+        return (earthTexture1Colour.getRed() +
+                earthTexture1Colour.getGreen() +
+                earthTexture1Colour.getBlue()) / 765.0;
     }
 
     private static Color lerpColor(Color colorA, Color colorB, double blend) {

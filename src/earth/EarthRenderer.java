@@ -159,31 +159,8 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
         if (!pressedKeys.contains(e.getKeyCode())) {
             pressedKeys.add(e.getKeyCode());
             adjustTimeSpeed(e);
-//            download(e);
         }
     }
-
-//    private void download(KeyEvent e) {
-//        if (e.getKeyCode() == KeyEvent.VK_K) {
-//            long startTime = System.currentTimeMillis();
-//            status = "Downloading images for timestamp " + DATE_TIME_FORMATTER.format(dateTime);
-//            System.out.println("Downloading images for timestamp " + dateTime);
-//            List<EarthImage> earthImages = loader.getEarthImages(dateTime);
-//            long timeTaken = System.currentTimeMillis() - startTime;
-//            status = "Loaded " + earthImages.size() + " images in " + timeTaken + "ms";
-//            System.out.println("Loaded " + earthImages.size() + " images in " + timeTaken + "ms");
-//
-//
-//            startTime = System.currentTimeMillis();
-//            List<EarthTexture> earthTextures = earthImages.stream().map(i -> new EarthTexture(sphere, i)).toList();
-//            timeTaken = System.currentTimeMillis() - startTime;
-//            status = "Loaded " + earthTextures.size() + " textures in " + timeTaken + "ms";
-//            System.out.println("Loaded " + earthTextures.size() + " textures in " + timeTaken + "ms");
-//            if (!earthTextures.isEmpty()) {
-//                earthTexture = earthTextures.get(0).getEarthTexture();
-//            }
-//        }
-//    }
 
     private void adjustTimeSpeed(KeyEvent e) {
         if (e.getKeyCode() == KeyEvent.VK_L) {
