@@ -74,38 +74,40 @@ public class Sphere {
         return new Intersection(intersectionPoint, normal);
     }
 
-    public Color getTextureColour(Vector3D point, BufferedImage earthTexture) {
+    public Color getTextureColour(Vector3D point, BufferedImage earthTexture1, BufferedImage earthTexture2, double blend) {
         Vector3D d = point.subtract(position).unit();
         d = rotation.rotatePoint(d);
         double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
         double v = 0.5 + Math.asin(d.y()) / Math.PI;
 
-        Color chequeredColour;
-
-        if ((int)(u * 8) % 2 == 0) {
-            if ((int)(v * 8) % 2 == 0) {
-                chequeredColour = new Color(0, 0, 0);
-            } else {
-                chequeredColour = new Color(255, 255, 255);
-            }
-        } else {
-            if ((int) (v * 8) % 2 == 0) {
-                chequeredColour = new Color(255, 255, 255);
-            } else {
-                chequeredColour = new Color(0, 0, 0);
-            }
-        }
+//        Color chequeredColour;
+//
+//        if ((int)(u * 8) % 2 == 0) {
+//            if ((int)(v * 8) % 2 == 0) {
+//                chequeredColour = new Color(0, 0, 0);
+//            } else {
+//                chequeredColour = new Color(255, 255, 255);
+//            }
+//        } else {
+//            if ((int) (v * 8) % 2 == 0) {
+//                chequeredColour = new Color(255, 255, 255);
+//            } else {
+//                chequeredColour = new Color(0, 0, 0);
+//            }
+//        }
 
         // Based on the current date / time, find the nearest two earth textures and the distance between them
         // Load all the earth images and create a map by date.
         // Load the required pixel as a combination of two earth textures.
-        int uint = (int) (u * earthTexture.getWidth());
-        int vint = (int) (v * earthTexture.getHeight());
-        Color earthTextureColour = new Color(earthTexture.getRGB(uint, vint));
-        return lerpColor(chequeredColour, earthTextureColour, 0.9f);
+        int uint = (int) (u * earthTexture1.getWidth());
+        int vint = (int) (v * earthTexture1.getHeight());
+        Color earthTexture1Colour = new Color(earthTexture1.getRGB(uint, vint));
+        Color earthTexture2Colour = new Color(earthTexture2.getRGB(uint, vint));
+
+        return lerpColor(earthTexture1Colour, earthTexture2Colour, blend);
     }
 
-    private static Color lerpColor(Color colorA, Color colorB, float blend) {
+    private static Color lerpColor(Color colorA, Color colorB, double blend) {
         int red = (int) (colorA.getRed() * (1 - blend) + colorB.getRed() * blend);
         int green = (int) (colorA.getGreen() * (1 - blend) + colorB.getGreen() * blend);
         int blue = (int) (colorA.getBlue() * (1 - blend) + colorB.getBlue() * blend);

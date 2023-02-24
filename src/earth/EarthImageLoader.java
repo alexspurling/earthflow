@@ -7,15 +7,12 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 public class EarthImageLoader {
@@ -39,30 +36,31 @@ public class EarthImageLoader {
 
     }
 
-    public List<EarthImage> getEarthImages(OffsetDateTime dateTime) {
-        Metadata metadata = getMetadata(dateTime);
+//    public List<EarthImage> getEarthImages(OffsetDateTime dateTime) {
+//        LocalDate date = dateTime.toLocalDate();
+//        Metadata metadata = getMetadata(date);
+//
+//        Optional<ImageMetadata> image1 = metadata.getImageBefore(dateTime);
+//        Optional<ImageMetadata> image2 = metadata.getImageAfter(dateTime);
+//
+//        if (image1.isEmpty()) {
+//            metadata = getMetadata(date.minusDays(1));
+//            image1 = metadata.getImageBefore(dateTime);
+//        }
+//        if (image2.isEmpty()) {
+//            metadata = getMetadata(date.plusDays(1));
+//            image2 = metadata.getImageAfter(dateTime);
+//        }
+//        if (image1.isEmpty() && image2.isEmpty()) {
+//            System.out.println("No images found for " + dateTime);
+//            return Collections.emptyList();
+//        }
+//        return Stream.of(image1, image2).flatMap(x ->
+//                x.stream().map(im -> new EarthImage(im, loadImage(im))))
+//                .collect(Collectors.toList());
+//    }
 
-        Optional<ImageMetadata> image1 = metadata.getImageBefore(dateTime);
-        Optional<ImageMetadata> image2 = metadata.getImageAfter(dateTime);
-
-        if (image1.isEmpty()) {
-            metadata = getMetadata(dateTime.minusDays(1));
-            image1 = metadata.getImageBefore(dateTime);
-        }
-        if (image2.isEmpty()) {
-            metadata = getMetadata(dateTime.plusDays(1));
-            image2 = metadata.getImageAfter(dateTime);
-        }
-        if (image1.isEmpty() && image2.isEmpty()) {
-            System.out.println("No images found for " + dateTime);
-            return Collections.emptyList();
-        }
-        return Stream.of(image1, image2).flatMap(x ->
-                x.stream().map(im -> new EarthImage(im, loadImage(im))))
-                .collect(Collectors.toList());
-    }
-
-    private BufferedImage loadImage(ImageMetadata im) {
+    public BufferedImage loadImage(ImageMetadata im) {
         String pngFilename = im.image() + ".png";
         OffsetDateTime imageDate = im.date();
         File dateTimeDir = new File(IMAGES_FOLDER, DATE_FORMATTER.format(imageDate));
@@ -98,35 +96,36 @@ public class EarthImageLoader {
         }
     }
 
-    private Metadata getMetadata(OffsetDateTime dateTime) {
-        String dateAsString = DATE_FORMATTER.format(dateTime);
+    public Metadata getMetadata(LocalDate date) {
+        String dateAsString = DATE_FORMATTER.format(date);
         File dateTimeDir = new File(IMAGES_FOLDER, dateAsString);
         File metadataFile = new File(dateTimeDir, "metadata.json");
 
-        System.out.println("Getting metadata for " + dateTime);
+        System.out.println("Getting metadata for " + date);
         try {
             String metadataJson;
             if (!dateTimeDir.exists()) {
                 dateTimeDir.mkdir();
                 metadataJson = downloadString(DSCOVR_API + dateAsString);
                 writeString(metadataFile, metadataJson);
-                return parseMetadata(metadataJson);
+                return parseMetadata(date, metadataJson);
             } else {
                 metadataJson = readString(metadataFile);
-                Metadata metadata = parseMetadata(metadataJson);
+                Metadata metadata = parseMetadata(date, metadataJson);
                 if (metadata.isEmpty()) {
                     metadataJson = downloadString(DSCOVR_API + dateAsString);
                     writeString(metadataFile, metadataJson);
-                    return parseMetadata(metadataJson);
+                    return parseMetadata(date, metadataJson);
                 }
                 return metadata;
             }
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            System.err.println("Error loading metadata for :" + date);
+            return null;
         }
     }
 
-    private Metadata parseMetadata(String metadataJson) {
+    private Metadata parseMetadata(LocalDate metadataDate, String metadataJson) {
         List<ImageMetadata> imageMetadataList = new ArrayList<>();
         try (JsonReader reader = Json.createReader(new StringReader(metadataJson))) {
             JsonValue jsonValue = reader.read();
@@ -144,7 +143,7 @@ public class EarthImageLoader {
             }
         }
         System.out.println("Parsed metadata with " + imageMetadataList.size() + " images");
-        return new Metadata(imageMetadataList);
+        return new Metadata(metadataDate, imageMetadataList);
     }
 
     private String readString(File fileToRead) throws IOException {

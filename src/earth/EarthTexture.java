@@ -2,8 +2,9 @@ package earth;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.time.OffsetDateTime;
 
-public class EarthTexture {
+public class EarthTexture implements Texture {
 
     private static final int WIDTH = 1024;
     private static final int HEIGHT = 1024;
@@ -12,8 +13,8 @@ public class EarthTexture {
     public static final double RAY_Z = Math.tan(Math.toRadians(90 - (FOV / 2)));
 
     private final Sphere sphere;
-    private final BufferedImage earthTexture;
     private final EarthImage image;
+    private final BufferedImage earthTexture;
 
     public EarthTexture(Sphere sphere, EarthImage image) {
         this.sphere = sphere;
@@ -61,17 +62,17 @@ public class EarthTexture {
         int numPixels = 0;
 
         startTime = System.currentTimeMillis();
-//        for (int x = 0; x < WIDTH * 4; x++) {
-//            for (int y = 0; y < HEIGHT * 2; y++) {
-//                int k = 1;
-//                while (earthTexture.getRGB(x, y) == black && k <= 3) {
-//                    // try to find a nearby pixel to interpolate with
-//                    earthTexture.setRGB(x, y, averagePixels(earthTexture, x, y, k));
-//                    k += 2;
-//                    numPixels += 1;
-//                }
-//            }
-//        }
+        for (int x = 0; x < earthTexture.getWidth(); x++) {
+            for (int y = 0; y < earthTexture.getHeight(); y++) {
+                int k = 1;
+                while (earthTexture.getRGB(x, y) == black && k <= 3) {
+                    // try to find a nearby pixel to interpolate with
+                    earthTexture.setRGB(x, y, averagePixels(earthTexture, x, y, k));
+                    k += 2;
+                    numPixels += 1;
+                }
+            }
+        }
         System.out.println("Filled in " + numPixels + " gaps in " + (System.currentTimeMillis() - startTime));
 
         System.out.println("Done");
@@ -121,7 +122,17 @@ public class EarthTexture {
         return new Color(averageRed, averageGreen, averageBlue).getRGB();
     }
 
-    public BufferedImage getEarthTexture() {
+    @Override
+    public BufferedImage getTexture() {
         return earthTexture;
+    }
+
+    @Override
+    public OffsetDateTime getDate() {
+        return image.metadata().date();
+    }
+
+    public EarthImage getEarthImage() {
+        return image;
     }
 }

@@ -1,17 +1,14 @@
 package earth;
 
-import javax.imageio.ImageIO;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -28,8 +25,11 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
 
     private final BufferedImage canvas;
     private final Sphere sphere;
-    private BufferedImage earthTexture;
     private final EarthImageLoader loader;
+    private final EarthTextureCache cache;
+
+    private Texture earthTexture1;
+    private Texture earthTexture2;
 
     private int frameCount = 0;
     private long lastFpsTime = System.currentTimeMillis();
@@ -38,7 +38,6 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
     private final Vector3D camera = new Vector3D(0, 0, 0);
 
     private final Vector3D lightDirection = new Vector3D(0, 0, 1);
-    private final Cube cube;
 
     private long lastFrameTime = System.nanoTime();
     private final Set<Integer> pressedKeys = new HashSet<>();
@@ -53,28 +52,19 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
     private String status = "";
 
     public EarthRenderer() {
-        BufferedImage earthImagePng;
 
-        long startTime = System.currentTimeMillis();
-        try {
-            earthImagePng = ImageIO.read(new File("images/epic_1b_20230119000830.png"));
-            canvas = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-            earthTexture = new BufferedImage(WIDTH * 4, HEIGHT * 2, BufferedImage.TYPE_INT_RGB);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        System.out.println("Loaded images in " + (System.currentTimeMillis() - startTime) + "ms");
+        canvas = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
 
         double distance = Math.sqrt(Math.pow(513256.302301, 2) + Math.pow(-1132637.821089, 2) + Math.pow(-676524.885803, 2));
-        cube = new Cube(new Vector3D(0, 0, 7), 0.0006, 0.002, 0.001);
+
         sphere = new Sphere(new Vector3D(0, 0, distance), 6378);
         loader = new EarthImageLoader();
 
-        startTime = System.currentTimeMillis();
-        EarthImage earthImage = new EarthImage(new ImageMetadata("epic_1b_20230119000830", dateTime), earthImagePng);
-        earthTexture = new EarthTexture(sphere, earthImage).getEarthTexture();
+        long startTime = System.currentTimeMillis();
 
         System.out.println("Loaded textures in " + (System.currentTimeMillis() - startTime) + " ms");
+
+        cache = new EarthTextureCache(sphere, loader);
     }
 
     @Override
@@ -88,21 +78,31 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
     @Override
     public void render(Graphics g, double dt, boolean recordMode) {
 
-//        dt = 0.2;
+        dt = 45;
+//        System.out.println(dt);
+
+        dateTime = dateTime.plus((int) (dt * timeSpeed), ChronoUnit.MILLIS);
+
+        cache.update(dateTime);
+
+        earthTexture1 = cache.getTextureBefore(dateTime);
+        earthTexture2 = cache.getTextureAfter(dateTime);
 
         g.setColor(new Color(123, 234, 12));
         g.drawImage(canvas, 0, 0, null);
-        g.drawImage(earthTexture, WIDTH, 0, 1600, 800, null);
+        g.drawImage(earthTexture1.getTexture(), WIDTH, 0, 1600, 800, null);
+        g.drawImage(earthTexture2.getTexture(), WIDTH, 800, 1600, 800, null);
 
         g.drawString("FPS: " + fps, 20, 20);
         g.drawString(String.format("Date: " + DATE_TIME_FORMATTER.format(dateTime)), 20, 40);
         g.drawString(String.format("Speed: " + timeSpeed), 20, 60);
-        g.drawString(status, 20, 80);
+        g.drawString(cache.getStatus(), 20, 80);
 
-        cube.update(dt);
-
-        dateTime = dateTime.plus((int) (dt * timeSpeed), ChronoUnit.MILLIS);
         sphere.update(dateTime);
+
+        long secondsSinceImage1 = ChronoUnit.SECONDS.between(earthTexture1.getDate(), dateTime);
+        long secondsBetweenImages = ChronoUnit.SECONDS.between(earthTexture1.getDate(), earthTexture2.getDate());
+        double blend = (double) secondsSinceImage1 / secondsBetweenImages;
 
         // Render sphere using generated earth texture
         IntStream.range(0, WIDTH).parallel().forEach((x) -> {
@@ -124,9 +124,11 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
 
                 double normalDotLight = intersection.normal().dot(lightDirection);
                 if (normalDotLight >= -1 && normalDotLight <= 0) {
-                    Color texColour = sphere.getTextureColour(intersection.point(), earthTexture);
-                    Color litColour = multiplyColour(texColour, -normalDotLight);
-                    canvas.setRGB(x, y, litColour.getRGB());
+
+                    Color texColour = sphere.getTextureColour(intersection.point(),
+                            earthTexture1.getTexture(), earthTexture2.getTexture(), blend);
+//                    Color litColour = multiplyColour(texColour, -normalDotLight);
+                    canvas.setRGB(x, y, texColour.getRGB());
                 }
             }
         });
@@ -157,31 +159,31 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
         if (!pressedKeys.contains(e.getKeyCode())) {
             pressedKeys.add(e.getKeyCode());
             adjustTimeSpeed(e);
-            download(e);
+//            download(e);
         }
     }
 
-    private void download(KeyEvent e) {
-        if (e.getKeyCode() == KeyEvent.VK_K) {
-            long startTime = System.currentTimeMillis();
-            status = "Downloading images for timestamp " + DATE_TIME_FORMATTER.format(dateTime);
-            System.out.println("Downloading images for timestamp " + dateTime);
-            List<EarthImage> earthImages = loader.getEarthImages(dateTime);
-            long timeTaken = System.currentTimeMillis() - startTime;
-            status = "Loaded " + earthImages.size() + " images in " + timeTaken + "ms";
-            System.out.println("Loaded " + earthImages.size() + " images in " + timeTaken + "ms");
-
-
-            startTime = System.currentTimeMillis();
-            List<EarthTexture> earthTextures = earthImages.stream().map(i -> new EarthTexture(sphere, i)).toList();
-            timeTaken = System.currentTimeMillis() - startTime;
-            status = "Loaded " + earthTextures.size() + " textures in " + timeTaken + "ms";
-            System.out.println("Loaded " + earthTextures.size() + " textures in " + timeTaken + "ms");
-            if (!earthTextures.isEmpty()) {
-                earthTexture = earthTextures.get(0).getEarthTexture();
-            }
-        }
-    }
+//    private void download(KeyEvent e) {
+//        if (e.getKeyCode() == KeyEvent.VK_K) {
+//            long startTime = System.currentTimeMillis();
+//            status = "Downloading images for timestamp " + DATE_TIME_FORMATTER.format(dateTime);
+//            System.out.println("Downloading images for timestamp " + dateTime);
+//            List<EarthImage> earthImages = loader.getEarthImages(dateTime);
+//            long timeTaken = System.currentTimeMillis() - startTime;
+//            status = "Loaded " + earthImages.size() + " images in " + timeTaken + "ms";
+//            System.out.println("Loaded " + earthImages.size() + " images in " + timeTaken + "ms");
+//
+//
+//            startTime = System.currentTimeMillis();
+//            List<EarthTexture> earthTextures = earthImages.stream().map(i -> new EarthTexture(sphere, i)).toList();
+//            timeTaken = System.currentTimeMillis() - startTime;
+//            status = "Loaded " + earthTextures.size() + " textures in " + timeTaken + "ms";
+//            System.out.println("Loaded " + earthTextures.size() + " textures in " + timeTaken + "ms");
+//            if (!earthTextures.isEmpty()) {
+//                earthTexture = earthTextures.get(0).getEarthTexture();
+//            }
+//        }
+//    }
 
     private void adjustTimeSpeed(KeyEvent e) {
         if (e.getKeyCode() == KeyEvent.VK_L) {
