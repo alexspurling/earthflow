@@ -39,7 +39,7 @@ public class EarthTextureCache {
     public EarthTextureCache(Sphere sphere, EarthImageLoader loader) {
         this.sphere = sphere;
         this.loader = loader;
-        this.chequerGrid = new ChequerGrid(sphere).getImage();
+        this.chequerGrid = new ChequerGrid().getImage();
     }
 
     public void update(OffsetDateTime dateTime) {

@@ -21,8 +21,6 @@ public class EarthImageLoader {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter DATE_FORMATTER2 = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
-//    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
     private static final DateTimeFormatter DATE_TIME_FORMATTER = new DateTimeFormatterBuilder()
             .append(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
             .optionalStart()
@@ -35,30 +33,6 @@ public class EarthImageLoader {
     public EarthImageLoader() {
 
     }
-
-//    public List<EarthImage> getEarthImages(OffsetDateTime dateTime) {
-//        LocalDate date = dateTime.toLocalDate();
-//        Metadata metadata = getMetadata(date);
-//
-//        Optional<ImageMetadata> image1 = metadata.getImageBefore(dateTime);
-//        Optional<ImageMetadata> image2 = metadata.getImageAfter(dateTime);
-//
-//        if (image1.isEmpty()) {
-//            metadata = getMetadata(date.minusDays(1));
-//            image1 = metadata.getImageBefore(dateTime);
-//        }
-//        if (image2.isEmpty()) {
-//            metadata = getMetadata(date.plusDays(1));
-//            image2 = metadata.getImageAfter(dateTime);
-//        }
-//        if (image1.isEmpty() && image2.isEmpty()) {
-//            System.out.println("No images found for " + dateTime);
-//            return Collections.emptyList();
-//        }
-//        return Stream.of(image1, image2).flatMap(x ->
-//                x.stream().map(im -> new EarthImage(im, loadImage(im))))
-//                .collect(Collectors.toList());
-//    }
 
     public BufferedImage loadImage(ImageMetadata im) {
         String pngFilename = im.image() + ".png";

@@ -1,8 +1,5 @@
 package earth;
 
-import static java.lang.Math.cos;
-import static java.lang.Math.sin;
-
 public record Vector3D(double x, double y, double z) {
 
     public Vector3D add(Vector3D b) {
