@@ -51,6 +51,8 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
 
     private String status = "";
 
+    private int offset = 0;
+
     public EarthRenderer() {
 
         canvas = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
@@ -96,7 +98,10 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
         g.drawString("FPS: " + fps, 20, 20);
         g.drawString(String.format("Date: " + DATE_TIME_FORMATTER.format(dateTime)), 20, 40);
         g.drawString(String.format("Speed: " + timeSpeed), 20, 60);
-        g.drawString(cache.getStatus(), 20, 80);
+        g.drawString(String.format("Offset: " + offset), 20, 80);
+        g.drawString(cache.getStatus(), 20, 100);
+        g.drawString(String.format("Texture 1: " + earthTexture1.getDate()), 20, 120);
+        g.drawString(String.format("Texture 2: " + earthTexture2.getDate()), 20, 140);
 
         sphere.update(dateTime);
 
@@ -159,6 +164,18 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
         if (!pressedKeys.contains(e.getKeyCode())) {
             pressedKeys.add(e.getKeyCode());
             adjustTimeSpeed(e);
+            addTimeOffset(e);
+            toggleRadius(e);
+        }
+    }
+
+    private void toggleRadius(KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.VK_R) {
+            if (sphere.radius == 6378) {
+                sphere.setRadius(6428);
+            } else {
+                sphere.setRadius(6378);
+            }
         }
     }
 
@@ -181,6 +198,14 @@ public class EarthRenderer implements CanvasRenderer, KeyListener {
             }
         } else if (e.getKeyCode() == KeyEvent.VK_K) {
             timeSpeed = 0;
+        }
+    }
+
+    private void addTimeOffset(KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.VK_O) {
+            offset += 1;
+        } else if (e.getKeyCode() == KeyEvent.VK_I) {
+            offset -= 1;
         }
     }
 

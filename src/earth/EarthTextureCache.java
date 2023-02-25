@@ -8,9 +8,9 @@ import java.util.concurrent.*;
 
 public class EarthTextureCache {
 
-    private static final int THREADS = 2;
+    private static final int THREADS = 3;
 
-    private static final int MAX_TEXTURES = 5;
+    private static final int MAX_TEXTURES = 10;
 
     private final Sphere sphere;
 
@@ -50,14 +50,14 @@ public class EarthTextureCache {
         if (lastDateTime != null) {
             if (dateTime.isAfter(lastDateTime)) {
                 // Time is moving forward
-                loadTexturesAfter(dateTime, 4);
                 loadTexturesBefore(dateTime, 1);
-                deleteTexturesBefore(dateTime, 1);
+                loadTexturesAfter(dateTime, 4);
+                deleteTexturesBefore(dateTime, 5);
             } else if (dateTime.isBefore(lastDateTime)) {
                 // Time is moving backwards
                 loadTexturesBefore(dateTime, 4);
                 loadTexturesAfter(dateTime, 1);
-                deleteTexturesAfter(dateTime, 1);
+                deleteTexturesAfter(dateTime, 5);
             }
         }
 
@@ -67,18 +67,23 @@ public class EarthTextureCache {
     public void loadMetadata(OffsetDateTime dateTime) {
         LocalDate localDate = dateTime.toLocalDate();
         if (!metadataMap.containsKey(localDate)) {
-            metadataQueue.computeIfAbsent(localDate, (date) -> CompletableFuture.supplyAsync(() -> loader.getMetadata(date), executor)
+            metadataQueue.computeIfAbsent(localDate, (date) -> CompletableFuture.supplyAsync(() -> {
+                System.out.println("Loading metadata " + date);
+                return loader.getMetadata(date);
+                }, executor)
                     .thenAccept((metadata) -> {
-                        metadataMap.putIfAbsent(localDate, metadata);
-                        for (ImageMetadata im : metadata.getMetadata()) {
-                            imageMetadataMap.put(im.date(), im);
+                        synchronized (this) {
+                            metadataMap.putIfAbsent(localDate, metadata);
+                            for (ImageMetadata im : metadata.getMetadata()) {
+                                imageMetadataMap.put(im.date(), im);
+                            }
+                            metadataQueue.remove(localDate);
                         }
-                        metadataQueue.remove(localDate);
                     }));
         }
     }
 
-    private void loadTexturesBefore(OffsetDateTime dateTime, int numToLoad) {
+    private synchronized void loadTexturesBefore(OffsetDateTime dateTime, int numToLoad) {
         // Iterate over the map entries in reverse starting from datetime
         Collection<ImageMetadata> values = imageMetadataMap.descendingMap().tailMap(dateTime).values();
         Iterator<ImageMetadata> iterator = values.iterator();
@@ -89,7 +94,7 @@ public class EarthTextureCache {
         }
     }
 
-    private void loadTexturesAfter(OffsetDateTime dateTime, int numToLoad) {
+    private synchronized void loadTexturesAfter(OffsetDateTime dateTime, int numToLoad) {
         // Iterate over the map entries starting at datetime
         Collection<ImageMetadata> values = imageMetadataMap.tailMap(dateTime).values();
         Iterator<ImageMetadata> iterator = values.iterator();
@@ -103,7 +108,8 @@ public class EarthTextureCache {
     private void loadTexture(ImageMetadata im) {
         if (!earthTextureCache.containsKey(im.date())) {
             earthTextureQueue.computeIfAbsent(im.date(), (date) -> CompletableFuture.supplyAsync(() -> {
-                status = "Loading image " + earthTextureQueue.size() + "/5";
+                status = "Loading image " + im.date();
+                System.out.println(status);
                 return loader.loadImage(im);
             }, executor)
                     .thenAccept((image) -> {
@@ -115,13 +121,19 @@ public class EarthTextureCache {
                             earthTextureList.sort(Comparator.comparing(o -> o.getEarthImage().metadata().date()));
                             System.out.println("Added texture for " + im.date() + ". Cache now has " + (earthTextureCache.size()) + " textures");
                             earthTextureQueue.remove(im.date());
-                            status = "Loaded image " + earthTextureCache.size() + "/5";
+                            status = "Loaded image " + earthTextureCache.size() + "/" + MAX_TEXTURES;
+                            System.out.println(status);
                         }
+                    }).exceptionally(ex -> {
+                        earthTextureQueue.remove(im.date());
+                        ex.printStackTrace();
+                        System.err.println("Error loading image and texture");
+                        return null;
                     }));
         }
     }
 
-    private Optional<ImageMetadata> getImageMetadataBeforeDateTime(OffsetDateTime dateTime) {
+    private synchronized Optional<ImageMetadata> getImageMetadataBeforeDateTime(OffsetDateTime dateTime) {
         SortedMap<OffsetDateTime, ImageMetadata> headMap = imageMetadataMap.headMap(dateTime);
         if (headMap.isEmpty()) {
             return Optional.empty();
@@ -129,7 +141,7 @@ public class EarthTextureCache {
         return Optional.of(headMap.get(headMap.lastKey()));
     }
 
-    private Optional<ImageMetadata> getImageMetadataAfterDateTime(OffsetDateTime dateTime) {
+    private synchronized Optional<ImageMetadata> getImageMetadataAfterDateTime(OffsetDateTime dateTime) {
         SortedMap<OffsetDateTime, ImageMetadata> tailMap = imageMetadataMap.tailMap(dateTime);
         if (tailMap.isEmpty()) {
             return Optional.empty();
@@ -162,27 +174,28 @@ public class EarthTextureCache {
     }
 
 
-    private void deleteTexturesBefore(OffsetDateTime dateTime, int skip) {
+    private synchronized void deleteTexturesBefore(OffsetDateTime dateTime, int skip) {
         Collection<ImageMetadata> values = imageMetadataMap.descendingMap().tailMap(dateTime).values();
         Iterator<ImageMetadata> iterator = values.iterator();
         // Don't delete the most recent image
-        for (int i = 0; i < skip; i++) {
+        for (int i = 0; i < skip && iterator.hasNext(); i++) {
             iterator.next();
         }
         while (iterator.hasNext()) {
-            EarthTexture remove = earthTextureCache.remove(iterator.next().date());
+            OffsetDateTime dateToRemove = iterator.next().date();
+            EarthTexture remove = earthTextureCache.remove(dateToRemove);
             if (remove != null) {
-                System.out.println("Removed image");
+                System.out.println("Removed image: " + dateToRemove);
             }
         }
     }
 
 
-    private void deleteTexturesAfter(OffsetDateTime dateTime, int skip) {
+    private synchronized void deleteTexturesAfter(OffsetDateTime dateTime, int skip) {
         Collection<ImageMetadata> values = imageMetadataMap.tailMap(dateTime).values();
         Iterator<ImageMetadata> iterator = values.iterator();
         // Don't delete the most recent image
-        for (int i = 0; i < skip; i++) {
+        for (int i = 0; i < skip && iterator.hasNext(); i++) {
             iterator.next();
         }
         while (iterator.hasNext()) {

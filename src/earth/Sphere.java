@@ -13,7 +13,7 @@ public class Sphere {
     private static final double MAX_TILT = Math.toRadians(23.4);
     private static final Temporal WINTER_2022 = OffsetDateTime.of(2022, 12, 21, 12, 0, 0, 0, ZoneOffset.UTC);
     public final Vector3D position;
-    public final double radius;
+    public double radius;
     private static final long SECONDS_IN_DAY = 86400;
 
     private Quaternion rotation;
@@ -76,14 +76,42 @@ public class Sphere {
 
     public Color getTextureColour(Vector3D point, BufferedImage earthTexture1, BufferedImage earthTexture2, double blend) {
         Vector3D d = point.subtract(position).unit();
-        d = rotation.rotatePoint(d);
+        d = getRotation(dateTime).rotatePoint(d);
+
         double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
         double v = 0.5 + Math.asin(d.y()) / Math.PI;
 
         int uint = (int) (u * earthTexture1.getWidth());
         int vint = (int) (v * earthTexture1.getHeight());
 
-        if (uint < 0 || vint < 0 || uint >= earthTexture1.getWidth() || vint >= earthTexture1.getHeight()) {
+        Color earthTexture1Colour = getTextureColour(point, earthTexture1, d, u, v, uint, vint);
+        Color earthTexture2Colour = getTextureColour(point, earthTexture2, d, u, v, uint, vint);
+
+        return lerpColor(earthTexture1Colour, earthTexture2Colour, blend);
+    }
+
+    public Color getTextureColour(Vector3D point, BufferedImage earthTexture1, BufferedImage earthTexture2, double blend, int offset) {
+        Color earthTexture1Colour = getTextureColour(point, earthTexture1, 0);
+        Color earthTexture2Colour = getTextureColour(point, earthTexture2, offset);
+
+        return lerpColor(earthTexture1Colour, earthTexture2Colour, blend);
+    }
+
+    private Color getTextureColour(Vector3D point, BufferedImage earthTexture, int offset) {
+        Vector3D d = point.subtract(position).unit();
+        d = getRotation(dateTime.plusMinutes(offset)).rotatePoint(d);
+
+        double u = 0.5 + Math.atan2(d.z(), d.x()) / (Math.PI * 2);
+        double v = 0.5 + Math.asin(d.y()) / Math.PI;
+
+        int uint = (int) (u * earthTexture.getWidth());
+        int vint = (int) (v * earthTexture.getHeight());
+
+        return getTextureColour(point, earthTexture, d, u, v, uint, vint);
+    }
+
+    private static Color getTextureColour(Vector3D point, BufferedImage earthTexture, Vector3D d, double u, double v, int uint, int vint) {
+        if (uint < 0 || vint < 0 || uint >= earthTexture.getWidth() || vint >= earthTexture.getHeight()) {
             System.out.println("u/v out of bounds!");
             System.out.println("point: " + point);
             System.out.println("d: " + d);
@@ -93,10 +121,7 @@ public class Sphere {
             System.out.println("vint: " + vint);
         }
 
-        Color earthTexture1Colour = new Color(earthTexture1.getRGB(uint, vint));
-        Color earthTexture2Colour = new Color(earthTexture2.getRGB(uint, vint));
-
-        return lerpColor(earthTexture1Colour, earthTexture2Colour, blend);
+        return new Color(earthTexture.getRGB(uint, vint));
     }
 
     private double brightness(Color earthTexture1Colour) {
@@ -112,4 +137,7 @@ public class Sphere {
         return new Color(red, green, blue);
     }
 
+    public void setRadius(int radius) {
+        this.radius = radius;
+    }
 }

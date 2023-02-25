@@ -47,9 +47,6 @@ public class EarthTexture implements Texture {
             for (int ux = 0; ux < WIDTH * 4; ux++) {
                 for (int vy = 0; vy < WIDTH * 2; vy++) {
 
-                    if (ux == 205 && vy == 575) {
-                        System.out.println("Stop");
-                    }
                     double u = (double) ux / tWidth;
                     double v = (double) vy / tHeight;
 
@@ -83,11 +80,9 @@ public class EarthTexture implements Texture {
             }
         } catch (Throwable t) {
             t.printStackTrace();
-            System.out.println("Oh dear");
+            System.err.println("Error rendering earth texture for " + image.metadata().date());
         }
         System.out.println("Ray traced texture " + (System.currentTimeMillis() - startTime));
-
-        System.out.println("Done");
 
         return earthTexture;
     }

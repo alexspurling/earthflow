@@ -50,6 +50,7 @@ public class EarthImageLoader {
             System.out.println("Loading png " + pngFile);
             return ImageIO.read(pngFile);
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException("Error loading image: " + pngFilename);
         }
     }
@@ -75,12 +76,13 @@ public class EarthImageLoader {
         File dateTimeDir = new File(IMAGES_FOLDER, dateAsString);
         File metadataFile = new File(dateTimeDir, "metadata.json");
 
-        System.out.println("Getting metadata for " + date);
         try {
             String metadataJson;
             if (!dateTimeDir.exists()) {
+                String metadataUrl = DSCOVR_API + dateAsString;
+                System.out.println("Downloading metadata from: " + metadataUrl);
                 dateTimeDir.mkdir();
-                metadataJson = downloadString(DSCOVR_API + dateAsString);
+                metadataJson = downloadString(metadataUrl);
                 writeString(metadataFile, metadataJson);
                 return parseMetadata(date, metadataJson);
             } else {
@@ -94,6 +96,7 @@ public class EarthImageLoader {
                 return metadata;
             }
         } catch (Exception e) {
+            e.printStackTrace();
             System.err.println("Error loading metadata for :" + date);
             return null;
         }
